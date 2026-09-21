@@ -1,0 +1,60 @@
+<?php
+/**
+ * Admin menu registration.
+ *
+ * @package GuideGrid_Travel
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+if ( ! function_exists( 'tg_admin_menu' ) ) {
+	/**
+	 * Register the top-level Tours menu and submenus.
+	 *
+	 * @return void
+	 */
+	function tg_admin_menu() {
+		$can_bookings = current_user_can( 'manage_tg_bookings' );
+		$can_all      = current_user_can( 'manage_tg' );
+
+		add_menu_page(
+			__( 'Tours', 'guidegrid-travel' ),
+			__( 'Tours', 'guidegrid-travel' ),
+			$can_all ? 'manage_tg' : 'manage_tg_bookings',
+			'tg-bookings',
+			'tg_render_bookings_page',
+			'dashicons-location-alt',
+			25
+		);
+
+		if ( $can_bookings ) {
+			add_submenu_page( 'tg-bookings', __( 'Bookings', 'guidegrid-travel' ), __( 'Bookings', 'guidegrid-travel' ), 'manage_tg_bookings', 'tg-bookings', 'tg_render_bookings_page' );
+			add_submenu_page( 'tg-bookings', __( 'New Booking', 'guidegrid-travel' ), __( 'New Booking', 'guidegrid-travel' ), 'manage_tg_bookings', 'tg-new-booking', 'tg_render_manual_booking_page' );
+			// Hidden detail route (linked from row actions).
+			add_submenu_page( 'tg-bookings', __( 'Booking Details', 'guidegrid-travel' ), __( 'Booking Details', 'guidegrid-travel' ), 'manage_tg_bookings', 'tg-booking-detail', 'tg_render_booking_detail_page' );
+			remove_submenu_page( 'tg-bookings', 'tg-booking-detail' );
+		}
+		if ( $can_all ) {
+			add_submenu_page( 'tg-bookings', __( 'Calendar', 'guidegrid-travel' ), __( 'Calendar', 'guidegrid-travel' ), 'manage_tg', 'tg-calendar', 'tg_render_calendar_page' );
+			add_submenu_page( 'tg-bookings', __( 'Reviews', 'guidegrid-travel' ), __( 'Reviews', 'guidegrid-travel' ), 'manage_tg', 'tg-reviews', 'tg_render_reviews_admin_page' );
+			add_submenu_page( 'tg-bookings', __( 'Enquiries', 'guidegrid-travel' ), __( 'Enquiries', 'guidegrid-travel' ), 'manage_tg', 'tg-enquiries', 'tg_render_enquiries_page' );
+			add_submenu_page( 'tg-bookings', __( 'Coupons', 'guidegrid-travel' ), __( 'Coupons', 'guidegrid-travel' ), 'manage_tg', 'tg-coupons', 'tg_render_coupons_page' );
+			add_submenu_page( 'tg-bookings', __( 'Reports', 'guidegrid-travel' ), __( 'Reports', 'guidegrid-travel' ), 'manage_tg', 'tg-reports', 'tg_render_reports_page' );
+			add_submenu_page( 'tg-bookings', __( 'Settings', 'guidegrid-travel' ), __( 'Settings', 'guidegrid-travel' ), 'manage_tg', 'tg-settings', 'tg_render_settings_page' );
+			add_submenu_page( 'tg-bookings', __( 'Demo Data', 'guidegrid-travel' ), __( 'Demo Data', 'guidegrid-travel' ), 'manage_tg', 'tg-demo', 'tg_render_demo_page' );
+		}
+	}
+}
+add_action( 'admin_menu', 'tg_admin_menu' );
+
+/**
+ * Redirect from the top-level menu to the first submenu (prevents the "duplicate" page).
+ *
+ * @return void
+ */
+function tg_admin_redirect() {
+	if ( ! isset( $_GET['page'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		return;
+	}
+}
+add_action( 'admin_init', 'tg_admin_redirect' );

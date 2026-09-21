@@ -1,0 +1,229 @@
+/* GuideGrid Travel — admin styles */
+
+.tg-admin .tg-mb-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 0 16px;
+}
+
+.tg-admin .tg-label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+/* Stats row */
+.tg-stats-row {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: 12px;
+	margin: 18px 0;
+}
+.tg-stats-row .tg-stat {
+	background: #fff;
+	border: 1px solid #e6e9ec;
+	border-radius: 10px;
+	padding: 14px 16px;
+}
+.tg-stats-row .tg-stat .tg-stat-num {
+	display: block;
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: #172026;
+	line-height: 1.2;
+}
+.tg-stats-row .tg-stat .tg-stat-label {
+	font-size: 0.8rem;
+	color: #5b6570;
+}
+
+/* Filter form */
+.tg-filter-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin: 16px 0;
+	padding: 12px;
+	background: #fff;
+	border: 1px solid #e6e9ec;
+	border-radius: 10px;
+}
+
+/* Detail cards */
+.tg-detail-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 16px;
+	margin: 20px 0;
+}
+.tg-detail-card {
+	background: #fff;
+	border: 1px solid #e6e9ec;
+	border-radius: 10px;
+	padding: 18px 20px;
+}
+.tg-detail-card h2 {
+	margin-top: 0;
+	font-size: 1.05rem;
+}
+.tg-detail-card .tg-muted,
+.tg-admin .tg-muted {
+	color: #87919b;
+	font-size: 0.85rem;
+}
+
+.tg-actions-bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 20px 0;
+}
+.tg-actions-bar .tg-danger-btn {
+	color: #d64545;
+	border-color: #d64545;
+}
+
+/* Tables */
+.tg-bookings-table .tg-cell-num,
+.tg-admin .tg-cell-num {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+}
+.tg-admin .tg-danger-link {
+	color: #d64545 !important;
+}
+.tg-admin .tg-row-actions {
+	white-space: nowrap;
+}
+.tg-row-total td {
+	font-weight: 700;
+}
+.tg-row-discount td {
+	color: #2e9b5b;
+}
+
+/* Calendar */
+.tg-cal-nav {
+	margin: 12px 0 18px;
+}
+.tg-calendar {
+	border-collapse: collapse;
+	width: 100%;
+}
+.tg-calendar th,
+.tg-calendar td {
+	border: 1px solid #e6e9ec;
+	padding: 8px;
+	vertical-align: top;
+	width: 14.28%;
+	min-height: 110px;
+}
+.tg-calendar .tg-cal-out {
+	background: #f7f9fa;
+	color: #b7bec5;
+}
+.tg-calendar .tg-cal-today {
+	outline: 2px solid #0b6e69;
+	outline-offset: -2px;
+}
+.tg-cal-item {
+	font-size: 11px;
+	line-height: 1.35;
+	padding: 4px 6px;
+	border-radius: 6px;
+	margin-bottom: 4px;
+	background: #eef4f3;
+	border: 1px solid #d5e5e3;
+}
+.tg-cal-item a {
+	text-decoration: none;
+	display: block;
+	font-weight: 600;
+	color: #172026;
+}
+.tg-cal-item .tg-cal-status {
+	color: #5b6570;
+}
+.tg-cal-full {
+	background: #fbeaea;
+	border-color: #f0c4c4;
+}
+.tg-cal-blackout {
+	background: #fdf3e3;
+	border-color: #f0d9ae;
+}
+
+/* Notes */
+.tg-notes-card ul.tg-notes-list {
+	margin: 12px 0 0;
+}
+.tg-notes-card ul.tg-notes-list li {
+	margin: 0 0 10px;
+	padding: 10px 12px;
+	background: #fdf6ec;
+	border: 1px solid #f0d9ae;
+	border-radius: 8px;
+	list-style: none;
+}
+.tg-notes-card ul.tg-notes-list li p {
+	margin: 6px 0 0;
+	color: #172026;
+}
+
+/* Dashboard widget */
+.tg-dash-stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 8px;
+	margin-bottom: 14px;
+}
+.tg-dash-stat {
+	background: #f7f9fa;
+	border-radius: 8px;
+	padding: 10px;
+	text-align: center;
+}
+.tg-dash-stat strong {
+	display: block;
+	font-size: 1.15rem;
+	color: #0b6e69;
+}
+.tg-dash-stat span {
+	font-size: 0.72rem;
+	color: #5b6570;
+}
+.tg-dash-list {
+	margin: 8px 0;
+}
+.tg-dash-list li {
+	margin-bottom: 6px;
+}
+
+/* Repeater */
+.tg-rep-row {
+	border: 1px solid #e6e9ec;
+	border-radius: 8px;
+	margin-bottom: 10px;
+	background: #fff;
+}
+.tg-rep-row-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px;
+	background: #f7f9fa;
+	border-bottom: 1px solid #e6e9ec;
+	border-radius: 8px 8px 0 0;
+}
+.tg-rep-fields {
+	padding: 10px 12px;
+}
+.tg-rep-remove {
+	color: #d64545;
+	font-weight: 700;
+}
+
+.tg-coupon-form {
+	max-width: 900px;
+}
