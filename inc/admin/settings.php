@@ -91,8 +91,9 @@ if ( ! function_exists( 'tg_render_settings_page' ) ) {
 						<p class="description"><?php esc_html_e( 'Unpaid bookings release their seats automatically after this time.', 'guidegrid-travel' ); ?></p></td>
 					</tr>
 					<tr>
-						<th><?php esc_html_e( 'Guest checkout', 'guidegrid-travel' ); ?></th>
-						<td><label><input type="checkbox" name="tg_settings[allow_guest_checkout]" value="1" <?php checked( ! empty( $s['allow_guest_checkout'] ) ); ?> /> <?php esc_html_e( 'Allow bookings without a customer account', 'guidegrid-travel' ); ?></label></td>
+						<th><?php esc_html_e( 'Customer account', 'guidegrid-travel' ); ?></th>
+						<td><input type="hidden" name="tg_settings[require_customer_account]" value="1" /><strong><?php esc_html_e( 'Required', 'guidegrid-travel' ); ?></strong>
+						<p class="description"><?php esc_html_e( 'Customers must log in or create an account. This is enforced on both the checkout page and booking API.', 'guidegrid-travel' ); ?></p></td>
 					</tr>
 					<tr>
 						<th><label for="tg-reminders"><?php esc_html_e( 'Reminder offsets (days before, comma separated)', 'guidegrid-travel' ); ?></label></th>
@@ -101,22 +102,81 @@ if ( ! function_exists( 'tg_render_settings_page' ) ) {
 				</table>
 
 				<h2><?php esc_html_e( 'Payments', 'guidegrid-travel' ); ?></h2>
+				<p><?php esc_html_e( 'Online methods appear at checkout only after they are enabled and all required credentials are saved.', 'guidegrid-travel' ); ?></p>
 				<table class="form-table" role="presentation">
 					<?php
 					foreach ( array( 'bank', 'cash', 'paylater' ) as $method_key ) :
-						$label = isset( $s['manual_payment_methods'][ $method_key ] ) ? $s['manual_payment_methods'][ $method_key ] : $method_key;
+						$label        = isset( $s['manual_payment_methods'][ $method_key ] ) ? $s['manual_payment_methods'][ $method_key ] : $method_key;
+						$enabled      = ! empty( $s['manual_payment_enabled'][ $method_key ] );
+						$instructions = isset( $s['manual_payment_instructions'][ $method_key ] ) ? $s['manual_payment_instructions'][ $method_key ] : '';
 						?>
 						<tr>
 							<th><label for="tg-method-<?php echo esc_attr( $method_key ); ?>"><?php echo esc_html( ucfirst( str_replace( 'paylater', 'Pay later', $method_key ) ) ); ?></label></th>
-							<td><input type="text" id="tg-method-<?php echo esc_attr( $method_key ); ?>" name="tg_settings[manual_method_<?php echo esc_attr( $method_key ); ?>]" value="<?php echo esc_attr( $label ); ?>" class="regular-text" /></td>
+							<td>
+								<label><input type="checkbox" name="tg_settings[manual_enabled_<?php echo esc_attr( $method_key ); ?>]" value="1" <?php checked( $enabled ); ?> /> <?php esc_html_e( 'Enable at checkout', 'guidegrid-travel' ); ?></label><br />
+								<input type="text" id="tg-method-<?php echo esc_attr( $method_key ); ?>" name="tg_settings[manual_method_<?php echo esc_attr( $method_key ); ?>]" value="<?php echo esc_attr( $label ); ?>" class="regular-text" /><br />
+								<textarea name="tg_settings[manual_instructions_<?php echo esc_attr( $method_key ); ?>]" rows="2" class="large-text" placeholder="<?php esc_attr_e( 'Customer instructions shown after booking', 'guidegrid-travel' ); ?>"><?php echo esc_textarea( $instructions ); ?></textarea>
+							</td>
 						</tr>
 					<?php endforeach; ?>
+				</table>
+				
+				<div style="display:none;">
+				<h3><?php esc_html_e( 'Stripe Checkout', 'guidegrid-travel' ); ?></h3>
+				<table class="form-table" role="presentation">
 					<tr>
-						<th><label for="tg-webhook-secret"><?php esc_html_e( 'Webhook Secret (HMAC-SHA256)', 'guidegrid-travel' ); ?></label></th>
-						<td><input type="text" id="tg-webhook-secret" name="tg_settings[webhook_secret]" value="<?php echo esc_attr( $s['webhook_secret'] ); ?>" class="regular-text" autocomplete="off" />
-						<p class="description"><?php esc_html_e( 'Required for online gateway webhooks. Leave empty to keep webhooks disabled.', 'guidegrid-travel' ); ?></p></td>
+						<th><?php esc_html_e( 'Stripe', 'guidegrid-travel' ); ?></th>
+						<td><label><input type="checkbox" name="tg_settings[stripe_enabled]" value="1" <?php checked( ! empty( $s['stripe_enabled'] ) ); ?> /> <?php esc_html_e( 'Enable hosted Stripe Checkout', 'guidegrid-travel' ); ?></label></td>
+					</tr>
+					<tr>
+						<th><label for="tg-stripe-key"><?php esc_html_e( 'Stripe Secret Key', 'guidegrid-travel' ); ?></label></th>
+						<td><input type="password" id="tg-stripe-key" name="tg_settings[stripe_secret_key]" value="<?php echo esc_attr( $s['stripe_secret_key'] ); ?>" class="regular-text" autocomplete="new-password" placeholder="sk_test_…" /></td>
+					</tr>
+					<tr>
+						<th><label for="tg-stripe-webhook"><?php esc_html_e( 'Stripe Webhook Signing Secret', 'guidegrid-travel' ); ?></label></th>
+						<td><input type="password" id="tg-stripe-webhook" name="tg_settings[stripe_webhook_secret]" value="<?php echo esc_attr( $s['stripe_webhook_secret'] ); ?>" class="regular-text" autocomplete="new-password" placeholder="whsec_…" />
+						<p class="description"><?php echo esc_html( sprintf( /* translators: %s: webhook URL */ __( 'Create a Stripe webhook for: %s', 'guidegrid-travel' ), rest_url( 'tg/v1/payments/stripe/webhook' ) ) ); ?></p></td>
 					</tr>
 				</table>
+
+				<h3><?php esc_html_e( 'PayPal Checkout', 'guidegrid-travel' ); ?></h3>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><?php esc_html_e( 'PayPal', 'guidegrid-travel' ); ?></th>
+						<td><label><input type="checkbox" name="tg_settings[paypal_enabled]" value="1" <?php checked( ! empty( $s['paypal_enabled'] ) ); ?> /> <?php esc_html_e( 'Enable PayPal Orders checkout', 'guidegrid-travel' ); ?></label><br />
+						<label><input type="checkbox" name="tg_settings[paypal_sandbox]" value="1" <?php checked( ! empty( $s['paypal_sandbox'] ) ); ?> /> <?php esc_html_e( 'Use PayPal Sandbox (recommended until tested)', 'guidegrid-travel' ); ?></label></td>
+					</tr>
+					<tr>
+						<th><label for="tg-paypal-client"><?php esc_html_e( 'PayPal Client ID', 'guidegrid-travel' ); ?></label></th>
+						<td><input type="text" id="tg-paypal-client" name="tg_settings[paypal_client_id]" value="<?php echo esc_attr( $s['paypal_client_id'] ); ?>" class="regular-text" autocomplete="off" /></td>
+					</tr>
+					<tr>
+						<th><label for="tg-paypal-secret"><?php esc_html_e( 'PayPal Client Secret', 'guidegrid-travel' ); ?></label></th>
+						<td><input type="password" id="tg-paypal-secret" name="tg_settings[paypal_client_secret]" value="<?php echo esc_attr( $s['paypal_client_secret'] ); ?>" class="regular-text" autocomplete="new-password" /></td>
+					</tr>
+				</table>
+
+				<h3><?php esc_html_e( 'Payment Simulator', 'guidegrid-travel' ); ?></h3>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><?php esc_html_e( 'Test gateway', 'guidegrid-travel' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="tg_settings[test_gateway_enabled]" value="1" <?php checked( ! empty( $s['test_gateway_enabled'] ) ); ?> /> <?php esc_html_e( 'Enable simulated approve/decline payments', 'guidegrid-travel' ); ?></label>
+							<p class="description"><?php esc_html_e( 'No money is charged. The simulator is available only on local, development, or staging environments and recognized local hostnames.', 'guidegrid-travel' ); ?></p>
+						</td>
+					</tr>
+				</table>
+				</div>
+
+				<details style="margin:16px 0;">
+					<summary><?php esc_html_e( 'Legacy custom-adapter webhook', 'guidegrid-travel' ); ?></summary>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th><label for="tg-webhook-secret"><?php esc_html_e( 'Webhook Secret (HMAC-SHA256)', 'guidegrid-travel' ); ?></label></th>
+							<td><input type="password" id="tg-webhook-secret" name="tg_settings[webhook_secret]" value="<?php echo esc_attr( $s['webhook_secret'] ); ?>" class="regular-text" autocomplete="new-password" /></td>
+						</tr>
+					</table>
+				</details>
 
 				<h2><?php esc_html_e( 'Emails & Contact', 'guidegrid-travel' ); ?></h2>
 				<table class="form-table" role="presentation">
@@ -158,8 +218,12 @@ if ( ! function_exists( 'tg_save_settings' ) ) {
 			'date_format'      => 60,
 			'admin_email'      => null,
 			'enquiry_notify_email' => null,
-			'email_from_name'  => 120,
-			'webhook_secret'   => 128,
+			'email_from_name'        => 120,
+			'webhook_secret'         => 255,
+			'stripe_secret_key'      => 255,
+			'stripe_webhook_secret'  => 255,
+			'paypal_client_id'       => 255,
+			'paypal_client_secret'   => 255,
 		);
 
 		foreach ( $text_keys as $key => $maxlen ) {
@@ -182,7 +246,7 @@ if ( ! function_exists( 'tg_save_settings' ) ) {
 			}
 		}
 
-		$bool_keys = array( 'tax_on_addons', 'allow_guest_checkout' );
+		$bool_keys = array( 'tax_on_addons', 'require_customer_account', 'stripe_enabled', 'paypal_enabled', 'paypal_sandbox', 'test_gateway_enabled' );
 		foreach ( $bool_keys as $key ) {
 			$updated[ $key ] = isset( $post[ $key ] ) ? 1 : 0;
 		}
@@ -193,12 +257,21 @@ if ( ! function_exists( 'tg_save_settings' ) ) {
 			$updated['reminder_days'] = $days ? $days : array( 7, 3, 1 );
 		}
 
-		$methods = array();
-		foreach ( array_keys( (array) $current['manual_payment_methods'] ) as $key ) {
-			$field = 'manual_method_' . $key;
-			$methods[ $key ] = isset( $post[ $field ] ) ? sanitize_text_field( $post[ $field ] ) : $current['manual_payment_methods'][ $key ];
+		$methods      = array();
+		$enabled      = array();
+		$instructions = array();
+		foreach ( array( 'bank', 'cash', 'paylater' ) as $key ) {
+			$label_field       = 'manual_method_' . $key;
+			$enabled_field     = 'manual_enabled_' . $key;
+			$instruction_field = 'manual_instructions_' . $key;
+			$methods[ $key ]      = isset( $post[ $label_field ] ) ? sanitize_text_field( $post[ $label_field ] ) : $current['manual_payment_methods'][ $key ];
+			$enabled[ $key ]      = isset( $post[ $enabled_field ] ) ? 1 : 0;
+			$instructions[ $key ] = isset( $post[ $instruction_field ] ) ? sanitize_textarea_field( $post[ $instruction_field ] ) : $current['manual_payment_instructions'][ $key ];
 		}
-		$updated['manual_payment_methods'] = $methods;
+		$updated['manual_payment_methods']      = $methods;
+		$updated['manual_payment_enabled']      = $enabled;
+		$updated['manual_payment_instructions'] = $instructions;
+		$updated['allow_guest_checkout']        = empty( $updated['require_customer_account'] ) ? 1 : 0;
 
 		update_option( 'tg_settings', $updated );
 	}

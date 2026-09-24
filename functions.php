@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TG_VERSION', '1.0.0' );
+define( 'TG_VERSION', '1.0.7' );
 define( 'TG_DB_VERSION', '1.0.0' );
 define( 'TG_DIR', get_template_directory() );
 define( 'TG_URI', get_template_directory_uri() );
@@ -29,6 +29,7 @@ require TG_DIR . '/inc/booking/emails.php';
 require TG_DIR . '/inc/setup.php';
 require TG_DIR . '/inc/roles.php';
 require TG_DIR . '/inc/helpers.php';
+require TG_DIR . '/inc/auth.php';
 require TG_DIR . '/inc/tour-query.php';
 require TG_DIR . '/inc/template-tags.php';
 require TG_DIR . '/inc/enqueue.php';

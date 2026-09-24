@@ -267,10 +267,11 @@ final class TG_Availability {
 	 * @param int    $tour_id Tour post ID.
 	 * @param string $date    Y-m-d.
 	 * @param int    $qty     Seats to reserve.
-	 * @param string $mode    hold|confirmed.
+	 * @param string $mode               hold|confirmed.
+	 * @param bool   $manage_transaction Whether this method should start/finish its own transaction.
 	 * @return true|WP_Error
 	 */
-	public static function reserve( int $tour_id, string $date, int $qty, string $mode = 'hold' ) {
+	public static function reserve( int $tour_id, string $date, int $qty, string $mode = 'hold', bool $manage_transaction = true ) {
 		$global = $GLOBALS['wpdb'];
 		$table  = self::tbl();
 		$date   = self::normalize_date( $date );
@@ -279,14 +280,18 @@ final class TG_Availability {
 
 		self::ensure_row( $tour_id, $date );
 
-		$global->query( 'START TRANSACTION' );
+		if ( $manage_transaction ) {
+			$global->query( 'START TRANSACTION' );
+		}
 
 		$row = $global->get_row(
 			$global->prepare( "SELECT * FROM {$table} WHERE tour_id = %d AND availability_date = %s FOR UPDATE", $tour_id, $date ) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		);
 
 		if ( ! $row ) {
-			$global->query( 'ROLLBACK' );
+			if ( $manage_transaction ) {
+				$global->query( 'ROLLBACK' );
+			}
 			return new WP_Error( 'tg_no_availability', __( 'No availability found for the selected date.', 'guidegrid-travel' ) );
 		}
 
@@ -294,7 +299,9 @@ final class TG_Availability {
 		if ( $capacity > 0 ) {
 			$remaining = $capacity - (int) $row->reserved - (int) $row->hold;
 			if ( $remaining < $qty ) {
-				$global->query( 'ROLLBACK' );
+				if ( $manage_transaction ) {
+					$global->query( 'ROLLBACK' );
+				}
 				return new WP_Error(
 					'tg_sold_out',
 					__( 'This date is no longer available. Please select another date.', 'guidegrid-travel' )
@@ -312,11 +319,15 @@ final class TG_Availability {
 		);
 
 		if ( false === $updated ) {
-			$global->query( 'ROLLBACK' );
+			if ( $manage_transaction ) {
+				$global->query( 'ROLLBACK' );
+			}
 			return new WP_Error( 'tg_availability_error', __( 'Availability could not be reserved. Please try again.', 'guidegrid-travel' ) );
 		}
 
-		$global->query( 'COMMIT' );
+		if ( $manage_transaction ) {
+			$global->query( 'COMMIT' );
+		}
 		return true;
 	}
 

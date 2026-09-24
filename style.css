@@ -1,10 +1,10 @@
 /*
 Theme Name: GuideGrid Travel
 Theme URI: https://example.com/guidegrid-travel
-Author: GuideGrid
-Author URI: https://example.com
+Author: Shuvrodeb
+Author URI: https://suvop.netlify.app
 Description: A complete tour package management and booking theme for travel agencies, tour operators and destination websites. Includes tours, destinations, travel guides, availability, seasonal pricing, coupons, add-ons, bookings, payments-ready workflow, customer accounts, reviews, wishlist and a full admin booking console.
-Version: 1.0.0
+Version: 1.0.6
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.2
@@ -13,7 +13,7 @@ License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: guidegrid-travel
 Tags: travel, booking, tours, e-commerce, custom-logo, custom-menu, featured-images, translation-ready, rtl-language-support
 */
-
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 /* ==========================================================================
    1. Design tokens
    ========================================================================== */
@@ -41,8 +41,8 @@ Tags: travel, booking, tours, e-commerce, custom-logo, custom-menu, featured-ima
 	--tg-radius-sm: 8px;
 	--tg-shadow: 0 6px 24px rgba(23, 32, 38, 0.08);
 	--tg-shadow-sm: 0 2px 10px rgba(23, 32, 38, 0.06);
-	--tg-font-heading: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-	--tg-font-body: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+	--tg-font-heading: "Plus Jakarta Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+	--tg-font-body: "Plus Jakarta Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
 	--tg-container: 1200px;
 	--tg-header-h: 76px;
 }
@@ -383,6 +383,7 @@ label.tg-label,
 	align-items: center;
 	gap: 20px;
 	min-height: var(--tg-header-h);
+	justify-content: space-between;
 }
 .tg-logo img { max-height: 44px; width: auto; }
 .tg-logo .tg-logo-text {
@@ -393,6 +394,8 @@ label.tg-label,
 	line-height: 1.1;
 }
 .tg-logo .tg-logo-text span { color: var(--tg-secondary); }
+.custom-logo { max-height: 60px;width: auto; }
+@media (max-width:640px) { .custom-logo{max-height: 48px;} }
 
 .tg-main-nav { margin-left: auto; }
 .tg-main-nav > ul {
@@ -489,8 +492,8 @@ label.tg-label,
 	inset: 0 0 0 auto;
 	transform: translateX(105%);
 }
-.tg-mobile-nav.is-open { transform: translateX(0); }
-[dir="rtl"] .tg-mobile-nav.is-open { transform: translateX(0); }
+.tg-mobile-nav.is-open { transform: translateX(0);display: block; }
+[dir="rtl"] .tg-mobile-nav.is-open { transform: translateX(0);display: block; }
 .tg-mobile-nav nav ul {
 	list-style: none;
 	margin: 0;
@@ -515,6 +518,7 @@ label.tg-label,
 /* ==========================================================================
    8. Hero
    ========================================================================== */
+@media (min-width:1200px){.tg-hero{padding: 120px 0 !important;min-height: 700px !important;}}
 .tg-hero {
 	position: relative;
 	color: #fff;
@@ -523,6 +527,7 @@ label.tg-label,
 	min-height: 560px;
 	display: flex;
 	align-items: center;
+	padding: 80px 0;
 }
 .tg-hero::before {
 	content: "";
@@ -579,7 +584,7 @@ label.tg-label,
 /* ==========================================================================
    9. Page head (archive headers)
    ========================================================================== */
-.tg-page-head { padding: 56px 0 8px; }
+.tg-page-head { padding: 40px 0 8px; }
 .tg-page-head h1 { margin-bottom: 6px; }
 .tg-page-head .tg-lead { color: var(--tg-muted); max-width: 60ch; }
 
@@ -885,12 +890,14 @@ label.tg-label,
 	.tg-search-card form { grid-template-columns: 1fr; }
 	.tg-footer-grid { grid-template-columns: 1fr; gap: 32px; }
 	.tg-site-header .tg-cta-wrap { display: none; }
+	.tg-page-head { padding: 10px 0 8px; }
 }
 
 @media (max-width: 575px) {
 	body { font-size: 15px; }
 	.tg-container { padding-inline: 16px; }
 	.tg-header-actions .tg-btn--header-cta { display: none; }
+	.tg-btn--sm { min-height: 32px;padding: 6px 10px;font-size: 0.75rem;border-radius: 8px; }
 }
 
 /* Reduced motion */

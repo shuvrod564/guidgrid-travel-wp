@@ -40,7 +40,7 @@ final class TG_Database {
 	 */
 	public static function tables(): array {
 		$global = $GLOBALS['wpdb'];
-		$char   = $global->charset_collate;
+		$char   = $global->get_charset_collate();
 		$prefix = $global->prefix;
 
 		return array(

@@ -14,9 +14,114 @@ defined( 'ABSPATH' ) || exit;
 get_header();
 
 if ( ! is_user_logged_in() ) {
-	$redirect = (string) ( isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : home_url( '/' ) );
-	wp_redirect( wp_login_url( $redirect ) );
-	exit;
+	$auth_view = isset( $_GET['auth'] ) && 'register' === sanitize_key( wp_unslash( $_GET['auth'] ) ) ? 'register' : 'login'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( isset( $_POST['tg_auth_action'] ) && in_array( sanitize_key( wp_unslash( $_POST['tg_auth_action'] ) ), array( 'login', 'register' ), true ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$auth_view = sanitize_key( wp_unslash( $_POST['tg_auth_action'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	}
+	$auth_redirect = isset( $_REQUEST['redirect_to'] ) ? tg_auth_redirect_target( (string) wp_unslash( $_REQUEST['redirect_to'] ) ) : tg_account_url(); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	$auth_errors   = tg_auth_errors();
+	$auth_email    = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	$auth_first    = isset( $_POST['first_name'] ) ? sanitize_text_field( wp_unslash( $_POST['first_name'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	$auth_last     = isset( $_POST['last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['last_name'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+	?>
+	<section class="tg-section tg-auth-section">
+		<div class="tg-container">
+			<div class="tg-auth-shell">
+				<div class="tg-auth-intro">
+					<span class="tg-auth-kicker"><?php esc_html_e( 'Your GuideGrid account', 'guidegrid-travel' ); ?></span>
+					<h1><?php esc_html_e( 'Plan, book and manage every adventure in one place.', 'guidegrid-travel' ); ?></h1>
+					<p><?php esc_html_e( 'Save your trips, keep booking details handy and check payment status whenever you need it.', 'guidegrid-travel' ); ?></p>
+					<ul>
+						<li><?php echo tg_svg( 'check-circle' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Secure customer checkout', 'guidegrid-travel' ); ?></li>
+						<li><?php echo tg_svg( 'check-circle' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Bookings and wishlists in one dashboard', 'guidegrid-travel' ); ?></li>
+						<li><?php echo tg_svg( 'check-circle' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Quick access to confirmations and trip status', 'guidegrid-travel' ); ?></li>
+					</ul>
+				</div>
+
+				<div class="tg-auth-card">
+					<div class="tg-auth-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Customer account', 'guidegrid-travel' ); ?>">
+						<a class="<?php echo 'login' === $auth_view ? 'is-active' : ''; ?>" href="<?php echo esc_url( tg_auth_url( $auth_redirect, 'login' ) ); ?>" role="tab" aria-selected="<?php echo 'login' === $auth_view ? 'true' : 'false'; ?>"><?php esc_html_e( 'Log in', 'guidegrid-travel' ); ?></a>
+						<a class="<?php echo 'register' === $auth_view ? 'is-active' : ''; ?>" href="<?php echo esc_url( tg_auth_url( $auth_redirect, 'register' ) ); ?>" role="tab" aria-selected="<?php echo 'register' === $auth_view ? 'true' : 'false'; ?>"><?php esc_html_e( 'Create account', 'guidegrid-travel' ); ?></a>
+					</div>
+
+					<?php if ( $auth_errors->has_errors() ) : ?>
+						<div class="tg-notice tg-notice--error" role="alert">
+							<?php foreach ( $auth_errors->get_error_messages() as $auth_message ) : ?>
+								<p><?php echo esc_html( $auth_message ); ?></p>
+							<?php endforeach; ?>
+						</div>
+					<?php endif; ?>
+
+					<?php if ( 'login' === $auth_view ) : ?>
+						<h2><?php esc_html_e( 'Welcome back', 'guidegrid-travel' ); ?></h2>
+						<p class="tg-auth-subtitle"><?php esc_html_e( 'Log in to continue to your account or checkout.', 'guidegrid-travel' ); ?></p>
+						<form method="post" class="tg-auth-form">
+							<?php wp_nonce_field( 'tg_frontend_auth', 'tg_auth_nonce' ); ?>
+							<input type="hidden" name="tg_auth_action" value="login" />
+							<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $auth_redirect ); ?>" />
+							<div class="tg-field tg-form-row">
+								<label class="tg-label" for="tg-auth-log"><?php esc_html_e( 'Email or username', 'guidegrid-travel' ); ?></label>
+								<input class="tg-input" type="text" id="tg-auth-log" name="log" value="<?php echo isset( $_POST['log'] ) ? esc_attr( sanitize_text_field( wp_unslash( $_POST['log'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing ?>" autocomplete="username" required />
+							</div>
+							<div class="tg-field tg-form-row">
+								<label class="tg-label" for="tg-auth-password"><?php esc_html_e( 'Password', 'guidegrid-travel' ); ?></label>
+								<input class="tg-input" type="password" id="tg-auth-password" name="pwd" autocomplete="current-password" required />
+							</div>
+							<div class="tg-auth-row">
+								<label class="tg-check-row"><input type="checkbox" name="rememberme" value="1" /> <span><?php esc_html_e( 'Remember me', 'guidegrid-travel' ); ?></span></label>
+								<a href="<?php echo esc_url( wp_lostpassword_url( $auth_redirect ) ); ?>"><?php esc_html_e( 'Forgot password?', 'guidegrid-travel' ); ?></a>
+							</div>
+							<button class="tg-btn tg-btn--primary tg-btn--block" type="submit"><?php esc_html_e( 'Log in securely', 'guidegrid-travel' ); ?></button>
+						</form>
+					<?php else : ?>
+						<h2><?php esc_html_e( 'Create your account', 'guidegrid-travel' ); ?></h2>
+						<p class="tg-auth-subtitle"><?php esc_html_e( 'It is free and takes less than a minute.', 'guidegrid-travel' ); ?></p>
+						<form method="post" class="tg-auth-form">
+							<?php wp_nonce_field( 'tg_frontend_auth', 'tg_auth_nonce' ); ?>
+							<input type="hidden" name="tg_auth_action" value="register" />
+							<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $auth_redirect ); ?>" />
+							<div class="tg-form-grid">
+								<div class="tg-field tg-form-row">
+									<label class="tg-label" for="tg-auth-first"><?php esc_html_e( 'First name', 'guidegrid-travel' ); ?></label>
+									<input class="tg-input" type="text" id="tg-auth-first" name="first_name" value="<?php echo esc_attr( $auth_first ); ?>" autocomplete="given-name" required />
+								</div>
+								<div class="tg-field tg-form-row">
+									<label class="tg-label" for="tg-auth-last"><?php esc_html_e( 'Last name', 'guidegrid-travel' ); ?></label>
+									<input class="tg-input" type="text" id="tg-auth-last" name="last_name" value="<?php echo esc_attr( $auth_last ); ?>" autocomplete="family-name" />
+								</div>
+							</div>
+							<div class="tg-field tg-form-row">
+								<label class="tg-label" for="tg-auth-email"><?php esc_html_e( 'Email address', 'guidegrid-travel' ); ?></label>
+								<input class="tg-input" type="email" id="tg-auth-email" name="email" value="<?php echo esc_attr( $auth_email ); ?>" autocomplete="email" required />
+							</div>
+							<div class="tg-form-grid">
+								<div class="tg-field tg-form-row">
+									<label class="tg-label" for="tg-auth-new-password"><?php esc_html_e( 'Password', 'guidegrid-travel' ); ?></label>
+									<input class="tg-input" type="password" id="tg-auth-new-password" name="password" minlength="8" autocomplete="new-password" required />
+								</div>
+								<div class="tg-field tg-form-row">
+									<label class="tg-label" for="tg-auth-confirm"><?php esc_html_e( 'Confirm password', 'guidegrid-travel' ); ?></label>
+									<input class="tg-input" type="password" id="tg-auth-confirm" name="password_confirm" minlength="8" autocomplete="new-password" required />
+								</div>
+							</div>
+							<p class="tg-field-help"><?php esc_html_e( 'Use at least 8 characters. A longer, unique password is safer.', 'guidegrid-travel' ); ?></p>
+							<button class="tg-btn tg-btn--primary tg-btn--block" type="submit"><?php esc_html_e( 'Create account', 'guidegrid-travel' ); ?></button>
+						</form>
+					<?php endif; ?>
+
+					<?php if ( shortcode_exists( 'loginizer_social' ) ) : ?>
+						<div class="tg-auth-social">
+							<span><?php esc_html_e( 'or continue with', 'guidegrid-travel' ); ?></span>
+							<?php echo do_shortcode( '[loginizer_social type="full" divider="none" container_alignment="center" button_alignment="center"]' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						</div>
+					<?php endif; ?>
+				</div>
+			</div>
+		</div>
+	</section>
+	<?php
+	get_footer();
+	return;
 }
 
 $acc_user   = wp_get_current_user();

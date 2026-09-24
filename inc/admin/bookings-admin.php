@@ -88,9 +88,6 @@ if ( ! function_exists( 'tg_render_bookings_page' ) ) {
 
 		$base_url = admin_url( 'admin.php?page=tg-bookings' );
 
-		// ---- Row / bulk actions. ----
-		tg_process_booking_actions( $base_url );
-
 		$stats = TG_Bookings::stats();
 
 		// ---- Filters. ----
@@ -342,11 +339,13 @@ function tg_do_booking_action( string $action, array $ids, string $redirect ) {
  * @return void
  */
 function tg_export_bookings_csv() {
-	if ( ! current_user_can( 'manage_tg_bookings' ) ) {
-		wp_die( esc_html__( 'Permission denied.', 'guidegrid-travel' ) );
-	}
+	// This callback runs on every wp-admin request. Do not perform capability
+	// checks (or terminate the request) unless an export was actually requested.
 	if ( ! isset( $_GET['tg_export'] ) || '1' !== $_GET['tg_export'] ) {
 		return;
+	}
+	if ( ! current_user_can( 'manage_tg_bookings' ) ) {
+		wp_die( esc_html__( 'Permission denied.', 'guidegrid-travel' ) );
 	}
 
 	// Reuse the current filters.
@@ -414,11 +413,6 @@ if ( ! function_exists( 'tg_render_booking_detail_page' ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'guidegrid-travel' ) );
 		}
 
-		// Actions (POST forms).
-		if ( isset( $_POST['tg_detail_nonce'] ) && wp_verify_nonce( sanitize_key( $_POST['tg_detail_nonce'] ), 'tg_booking_detail' ) ) {
-			tg_process_detail_actions();
-		}
-
 		$id      = isset( $_GET['booking'] ) ? absint( $_GET['booking'] ) : 0;
 		$booking = TG_Bookings::get( $id );
 
@@ -437,6 +431,9 @@ if ( ! function_exists( 'tg_render_booking_detail_page' ) ) {
 		?>
 		<div class="wrap tg-admin">
 			<h1><?php esc_html_e( 'Booking Details', 'guidegrid-travel' ); ?> <span class="tg-cell-num"><?php echo esc_html( $booking->booking_number ); ?></span></h1>
+			<?php if ( ! empty( $_GET['tg_msg'] ) ) : ?>
+				<div class="notice <?php echo ! empty( $_GET['tg_error'] ) ? 'notice-error' : 'notice-success'; ?> is-dismissible"><p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['tg_msg'] ) ) ); ?></p></div>
+			<?php endif; ?>
 			<p>
 				<?php echo tg_status_badge( $booking->booking_status ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				<?php echo tg_status_badge( $booking->payment_status, 'payment' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -597,43 +594,92 @@ if ( ! function_exists( 'tg_render_booking_detail_page' ) ) {
  * @return void
  */
 function tg_process_detail_actions() {
-	$action = isset( $_POST['tg_detail_action'] ) ? sanitize_key( $_POST['tg_detail_action'] ) : '';
+	$action = isset( $_POST['tg_detail_action'] ) ? sanitize_key( wp_unslash( $_POST['tg_detail_action'] ) ) : '';
 	$id     = isset( $_POST['tg_id'] ) ? absint( $_POST['tg_id'] ) : 0;
 
 	if ( ! $id || ! $action ) {
 		return;
 	}
 
-	switch ( $action ) {
-		case 'add_note':
-			$note = isset( $_POST['tg_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['tg_note'] ) ) : '';
-			if ( '' !== $note ) {
-				TG_Bookings::add_note( $id, $note, get_current_user_id() );
-			}
-			break;
-		case 'confirm':
-			TG_Bookings::confirm( $id );
-			break;
-		case 'mark_paid':
-			TG_Bookings::mark_paid( $id, 'manual' );
-			break;
-		case 'cancel':
-			TG_Bookings::cancel( $id, 'admin' );
-			break;
-		case 'complete':
-			TG_Bookings::complete( $id );
-			break;
-		case 'refund_requested':
-			TG_Bookings::request_refund( $id, 'admin' );
-			break;
-		case 'refund':
-			TG_Bookings::refund( $id, 0, 'admin' );
-			break;
+	$result = true;
+	if ( ! TG_Bookings::get( $id ) ) {
+		$result = new WP_Error( 'tg_booking_missing', __( 'Booking not found.', 'guidegrid-travel' ) );
+	} else {
+		switch ( $action ) {
+			case 'add_note':
+				$note = isset( $_POST['tg_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['tg_note'] ) ) : '';
+				$result = '' !== $note && TG_Bookings::add_note( $id, $note, get_current_user_id() )
+					? true
+					: new WP_Error( 'tg_note_empty', __( 'The note could not be added.', 'guidegrid-travel' ) );
+				break;
+			case 'confirm':
+				$result = TG_Bookings::confirm( $id );
+				break;
+			case 'mark_paid':
+				$result = TG_Bookings::mark_paid( $id, 'manual' );
+				break;
+			case 'cancel':
+				$result = TG_Bookings::cancel( $id, 'admin' );
+				break;
+			case 'complete':
+				$result = TG_Bookings::complete( $id );
+				break;
+			case 'refund_requested':
+				$result = TG_Bookings::request_refund( $id, 'admin' );
+				break;
+			case 'refund':
+				$result = TG_Bookings::refund( $id, 0, 'admin' );
+				break;
+			default:
+				$result = new WP_Error( 'tg_booking_action_invalid', __( 'That booking action is not available.', 'guidegrid-travel' ) );
+		}
 	}
 
-	wp_safe_redirect( add_query_arg( array( 'page' => 'tg-booking-detail', 'booking' => $id, 'tg_msg' => rawurlencode( __( 'Action processed.', 'guidegrid-travel' ) ) ), admin_url( 'admin.php' ) ) );
+	$is_error = is_wp_error( $result );
+	$message  = $is_error ? $result->get_error_message() : __( 'Action processed.', 'guidegrid-travel' );
+	$args     = array(
+		'page'    => 'tg-booking-detail',
+		'booking' => $id,
+		'tg_msg'  => $message,
+	);
+	if ( $is_error ) {
+		$args['tg_error'] = '1';
+	}
+	wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
 	exit;
 }
+
+/**
+ * Process booking admin actions before WordPress outputs admin headers.
+ *
+ * Handling redirects inside an admin page-render callback is too late because
+ * admin-header.php has already started the response. That produced “headers
+ * already sent” warnings when confirming, cancelling, or updating a booking.
+ *
+ * @return void
+ */
+function tg_handle_booking_admin_requests() {
+	$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! in_array( $page, array( 'tg-bookings', 'tg-booking-detail' ), true ) ) {
+		return;
+	}
+	if ( ! current_user_can( 'manage_tg_bookings' ) ) {
+		return;
+	}
+
+	if ( 'tg-bookings' === $page ) {
+		tg_process_booking_actions( admin_url( 'admin.php?page=tg-bookings' ) );
+		return;
+	}
+
+	if ( 'POST' === strtoupper( isset( $_SERVER['REQUEST_METHOD'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) : '' ) && isset( $_POST['tg_detail_nonce'] ) ) {
+		$nonce = sanitize_text_field( wp_unslash( $_POST['tg_detail_nonce'] ) );
+		if ( wp_verify_nonce( $nonce, 'tg_booking_detail' ) ) {
+			tg_process_detail_actions();
+		}
+	}
+}
+add_action( 'admin_init', 'tg_handle_booking_admin_requests', 20 );
 
 /* =========================================================================
  * Manual booking (admin)

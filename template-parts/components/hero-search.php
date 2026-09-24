@@ -49,6 +49,6 @@ $tours_archive = get_post_type_archive_link( 'tour' );
 				<?php endfor; ?>
 			</select>
 		</div>
-		<button type="submit" class="tg-btn tg-btn--primary"><?php echo tg_svg( 'search' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Search Tours', 'guidegrid-travel' ); ?></button>
+		<button type="submit" class="tg-btn tg-btn--primary"><?php echo tg_lucide( 'search' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Search Tours', 'guidegrid-travel' ); ?></button>
 	</form>
 </div>

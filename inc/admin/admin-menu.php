@@ -30,9 +30,9 @@ if ( ! function_exists( 'tg_admin_menu' ) ) {
 		if ( $can_bookings ) {
 			add_submenu_page( 'tg-bookings', __( 'Bookings', 'guidegrid-travel' ), __( 'Bookings', 'guidegrid-travel' ), 'manage_tg_bookings', 'tg-bookings', 'tg_render_bookings_page' );
 			add_submenu_page( 'tg-bookings', __( 'New Booking', 'guidegrid-travel' ), __( 'New Booking', 'guidegrid-travel' ), 'manage_tg_bookings', 'tg-new-booking', 'tg_render_manual_booking_page' );
-			// Hidden detail route (linked from row actions).
+			// Register the detail route as a real child page. It is removed from the
+			// visible menu later, after WordPress completes its access check.
 			add_submenu_page( 'tg-bookings', __( 'Booking Details', 'guidegrid-travel' ), __( 'Booking Details', 'guidegrid-travel' ), 'manage_tg_bookings', 'tg-booking-detail', 'tg_render_booking_detail_page' );
-			remove_submenu_page( 'tg-bookings', 'tg-booking-detail' );
 		}
 		if ( $can_all ) {
 			add_submenu_page( 'tg-bookings', __( 'Calendar', 'guidegrid-travel' ), __( 'Calendar', 'guidegrid-travel' ), 'manage_tg', 'tg-calendar', 'tg_render_calendar_page' );
@@ -46,6 +46,21 @@ if ( ! function_exists( 'tg_admin_menu' ) ) {
 	}
 }
 add_action( 'admin_menu', 'tg_admin_menu' );
+
+/**
+ * Hide the detail route without unregistering it during WordPress's permission
+ * check. Removing it inside admin_menu makes get_admin_page_parent() lose the
+ * route's parent and causes a false "not allowed" response for direct links.
+ *
+ * admin_head runs after user_can_access_admin_page() but before the menu HTML
+ * is rendered, so the page remains accessible without adding a menu item.
+ *
+ * @return void
+ */
+function tg_hide_booking_detail_submenu(): void {
+	remove_submenu_page( 'tg-bookings', 'tg-booking-detail' );
+}
+add_action( 'admin_head', 'tg_hide_booking_detail_submenu', 1 );
 
 /**
  * Redirect from the top-level menu to the first submenu (prevents the "duplicate" page).

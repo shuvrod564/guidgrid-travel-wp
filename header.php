@@ -26,13 +26,13 @@ $cta_url   = $settings['header_cta_url'] ? $settings['header_cta_url'] : ( get_p
 
 <header class="tg-site-header" id="tg-header">
 	<div class="tg-container">
-		<a class="tg-logo" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>">
-			<?php if ( has_custom_logo() ) : ?>
-				<?php the_custom_logo(); ?>
-			<?php else : ?>
+		<?php if ( has_custom_logo() ) : ?>
+			<?php the_custom_logo(); ?>
+		<?php else : ?>
+			<a class="tg-logo" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>">
 				<span class="tg-logo-text">Guide<span>Grid</span></span>
-			<?php endif; ?>
-		</a>
+			</a>
+		<?php endif; ?>
 
 		<nav class="tg-main-nav" aria-label="<?php esc_attr_e( 'Primary navigation', 'guidegrid-travel' ); ?>">
 			<?php
@@ -50,24 +50,30 @@ $cta_url   = $settings['header_cta_url'] ? $settings['header_cta_url'] : ( get_p
 		<span class="tg-header-actions">
 			<?php if ( $settings['show_header_search'] ) : ?>
 				<button type="button" class="tg-icon-btn" data-tg-toggle-search aria-expanded="false" aria-label="<?php esc_attr_e( 'Toggle search', 'guidegrid-travel' ); ?>">
-					<?php echo tg_svg( 'search' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<?php echo tg_lucide( 'search' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 				</button>
 			<?php endif; ?>
 			<?php if ( $settings['show_header_wishlist'] ) : ?>
 				<a class="tg-icon-btn" href="<?php echo esc_url( tg_account_url( 'wishlist' ) ); ?>" aria-label="<?php esc_attr_e( 'Wishlist', 'guidegrid-travel' ); ?>">
-					<?php echo tg_svg( 'heart' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-					<?php if ( $wishlist['count'] > 0 ) : ?>
-						<span class="tg-count" data-tg-wishlist-count><?php echo esc_html( (string) $wishlist['count'] ); ?></span>
+					<?php echo tg_lucide( 'heart' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<?php 
+					$count = isset( $wishlist['count'] ) ? (int) $wishlist['count'] : 0;
+					if ( $count > 0 ) : 
+					?>
+						<span class="tg-count" data-tg-wishlist-count><?php echo esc_html( (string) $count ); ?></span>
 					<?php endif; ?>
 				</a>
 			<?php endif; ?>
 			<?php if ( $settings['show_header_account'] ) : ?>
 				<?php if ( is_user_logged_in() ) : ?>
 					<a class="tg-icon-btn" href="<?php echo esc_url( tg_account_url() ); ?>" aria-label="<?php esc_attr_e( 'My account', 'guidegrid-travel' ); ?>">
-						<?php echo tg_svg( 'user' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+						<?php echo tg_lucide( 'user' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					</a>
 				<?php else : ?>
-					<a class="tg-btn tg-btn--ghost tg-btn--sm" href="<?php echo esc_url( wp_login_url( home_url( '/' ) ) ); ?>"><?php esc_html_e( 'Log In', 'guidegrid-travel' ); ?></a>
+					<span class="tg-header-auth">
+						<a class="tg-btn tg-btn--ghost tg-btn--sm" href="<?php echo esc_url( tg_auth_url( '', 'login' ) ); ?>"><?php esc_html_e( 'Log In', 'guidegrid-travel' ); ?></a>
+						<a class="tg-btn tg-btn--secondary tg-btn--sm tg-header-signup" href="<?php echo esc_url( tg_auth_url( '', 'register' ) ); ?>"><?php esc_html_e( 'Create Account', 'guidegrid-travel' ); ?></a>
+					</span>
 				<?php endif; ?>
 			<?php endif; ?>
 			<?php if ( $settings['show_header_cta'] ) : ?>
@@ -76,7 +82,7 @@ $cta_url   = $settings['header_cta_url'] ? $settings['header_cta_url'] : ( get_p
 				</span>
 			<?php endif; ?>
 			<button type="button" class="tg-icon-btn tg-header-toggle" data-tg-toggle-nav aria-expanded="false" aria-controls="tg-mobile-nav" aria-label="<?php esc_attr_e( 'Open menu', 'guidegrid-travel' ); ?>">
-				<?php echo tg_svg( 'menu' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+				<?php echo tg_lucide( 'menu' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			</button>
 		</span>
 	</div>

@@ -201,6 +201,7 @@
 			}
 			thumbs.forEach(function (thumb) {
 				thumb.addEventListener('click', function () {
+					console.log('clicked');
 					thumbs.forEach(function (t) {
 						t.classList.remove('is-active');
 					});

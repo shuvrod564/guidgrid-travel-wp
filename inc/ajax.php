@@ -86,47 +86,12 @@ if ( ! function_exists( 'tg_ajax_quote' ) ) {
 
         $quote = TG_Pricing::calculate_quote( $params );
 
-        // Fallback checks to prevent PHP warnings/fatals on undefined indexes
+        // Fallback check to prevent PHP warnings/fatals on malformed filters.
         if ( ! is_array( $quote ) ) {
             wp_send_json_error( array( 'message' => __( 'Calculation error.', 'guidegrid-travel' ) ), 500 );
         }
 
-        $currency = isset( $quote['currency'] ) ? $quote['currency'] : get_option( 'tg_currency', 'USD' );
-        $valid    = ! empty( $quote['valid'] );
-        $errors   = isset( $quote['errors'] ) && is_array( $quote['errors'] ) ? $quote['errors'] : array();
-
-        $subtotal    = isset( $quote['subtotal'] ) ? (float) $quote['subtotal'] : 0.0;
-        $discount    = isset( $quote['discount'] ) ? (float) $quote['discount'] : 0.0;
-        $tax         = isset( $quote['tax'] ) ? (float) $quote['tax'] : 0.0;
-        $service_fee = isset( $quote['service_fee'] ) ? (float) $quote['service_fee'] : 0.0;
-        $total       = isset( $quote['total'] ) ? (float) $quote['total'] : 0.0;
-        $deposit     = isset( $quote['deposit'] ) ? (float) $quote['deposit'] : 0.0;
-        $prices      = isset( $quote['prices'] ) ? $quote['prices'] : array();
-
-        wp_send_json_success(
-            array(
-                'valid'    => $valid,
-                'errors'   => $errors,
-                'lines'    => array(
-                    'subtotal' => tg_format_price( $subtotal, $currency ),
-                    'discount' => tg_format_price( $discount, $currency ),
-                    'tax'      => tg_format_price( $tax, $currency ),
-                    'fee'      => tg_format_price( $service_fee, $currency ),
-                    'total'    => tg_format_price( $total, $currency ),
-                    'deposit'  => tg_format_price( $deposit, $currency ),
-                ),
-                'raw'      => array(
-                    'subtotal'    => $subtotal,
-                    'discount'    => $discount,
-                    'tax'         => $tax,
-                    'service_fee' => $service_fee,
-                    'total'       => $total,
-                    'deposit'     => $deposit,
-                ),
-                'currency' => $currency,
-                'prices'   => $prices,
-            )
-        );
+        wp_send_json_success( tg_quote_response_payload( $quote ) );
     }
 }
 add_action( 'wp_ajax_tg_quote', 'tg_ajax_quote' );
@@ -142,6 +107,15 @@ if ( ! function_exists( 'tg_ajax_create_booking' ) ) {
 	function tg_ajax_create_booking() {
 		if ( ! tg_ajax_verify_nonce() ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid session. Please refresh the page and try again.', 'guidegrid-travel' ) ), 403 );
+		}
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error(
+				array(
+					'message'   => __( 'Log in or create an account before confirming your booking.', 'guidegrid-travel' ),
+					'login_url' => tg_auth_url( wp_get_referer() ? wp_get_referer() : home_url( '/' ), 'login' ),
+				),
+				401
+			);
 		}
 
 		$limit = tg_rate_limit( 'booking:' . tg_ip(), 5, 300 );
@@ -162,6 +136,7 @@ if ( ! function_exists( 'tg_ajax_create_booking' ) ) {
 		);
 
 		$addons = isset( $_POST['addons'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['addons'] ) ) : array();
+		$method = isset( $_POST['payment_method'] ) ? sanitize_key( wp_unslash( $_POST['payment_method'] ) ) : 'bank';
 
 		$result = TG_Bookings::create(
 			array(
@@ -172,7 +147,7 @@ if ( ! function_exists( 'tg_ajax_create_booking' ) ) {
 				'infants'        => isset( $_POST['infants'] ) ? absint( $_POST['infants'] ) : 0,
 				'addons'         => $addons,
 				'coupon'         => isset( $_POST['coupon'] ) ? sanitize_text_field( wp_unslash( $_POST['coupon'] ) ) : '',
-				'payment_method' => isset( $_POST['payment_method'] ) ? sanitize_key( wp_unslash( $_POST['payment_method'] ) ) : 'bank',
+				'payment_method' => $method,
 				'customer'       => $customer,
 				'user_id'        => get_current_user_id(),
 				'source'         => 'frontend',
@@ -183,6 +158,17 @@ if ( ! function_exists( 'tg_ajax_create_booking' ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ), 400 );
 		}
 
+		$payment_url   = '';
+		$payment_error = '';
+		if ( isset( TG_Payments::adapters()[ $method ] ) ) {
+			$checkout = TG_Payments::initiate( $result, $method );
+			if ( is_wp_error( $checkout ) ) {
+				$payment_error = $checkout->get_error_message();
+			} else {
+				$payment_url = (string) $checkout['url'];
+			}
+		}
+
 		wp_send_json_success(
 			array(
 				'booking_number' => $result->booking_number,
@@ -191,6 +177,8 @@ if ( ! function_exists( 'tg_ajax_create_booking' ) ) {
 				'status'         => TG_Bookings::status_labels()[ $result->booking_status ] ?? $result->booking_status,
 				'payment_status' => TG_Bookings::payment_labels()[ $result->payment_status ] ?? $result->payment_status,
 				'confirmation_url' => tg_confirmation_page_url( $result->booking_number ),
+				'payment_url'      => $payment_url,
+				'payment_error'    => $payment_error,
 			)
 		);
 	}

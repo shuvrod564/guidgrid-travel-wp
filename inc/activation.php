@@ -31,6 +31,7 @@ if ( ! function_exists( 'tg_activate_theme' ) ) {
 		// Load latest settings (keeps existing values).
 		$settings = tg_settings();
 		update_option( 'tg_settings', $settings );
+		update_option( 'tg_theme_version', TG_VERSION );
 
 		// Cron.
 		tg_cron_init();
@@ -97,9 +98,9 @@ function tg_create_workflow_pages(): array {
 	foreach ( $pages as $slug => $config ) {
 		$existing = get_page_by_path( $slug, OBJECT, 'page' );
 		if ( $existing ) {
-			// Assign template only if the page has none.
+			// Assign the workflow template when the page still uses the default.
 			$current_template = get_post_meta( $existing->ID, '_wp_page_template', true );
-			if ( ! $current_template ) {
+			if ( ! $current_template || 'default' === $current_template ) {
 				update_post_meta( $existing->ID, '_wp_page_template', $config['template'] );
 			}
 			$created[ $slug ] = $existing->ID;
@@ -126,11 +127,25 @@ function tg_create_workflow_pages(): array {
 }
 
 /**
- * Keep tables current when the theme loads (version checked).
+ * Apply one-time theme upgrades and keep workflow pages/tables available.
+ *
+ * This runs on init rather than only after theme activation because replacing
+ * an already-active theme directory does not fire after_switch_theme.
  *
  * @return void
  */
-function tg_maybe_install_tables() {
+function tg_maybe_upgrade_theme() {
 	TG_Database::maybe_install();
+
+	if ( get_option( 'tg_theme_version', '' ) === TG_VERSION ) {
+		return;
+	}
+
+	tg_add_roles();
+	tg_create_workflow_pages();
+	update_option( 'tg_theme_version', TG_VERSION );
+
+	// Workflow pages may have just been created or assigned a template.
+	flush_rewrite_rules( false );
 }
-add_action( 'admin_init', 'tg_maybe_install_tables' );
+add_action( 'init', 'tg_maybe_upgrade_theme', 20 );

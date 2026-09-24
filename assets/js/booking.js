@@ -10,7 +10,7 @@
 	var T = window.tgTour || {};
 	var I18N = T.i18n || {};
 
-	function post(action, payload) {
+	function ajaxPost(action, payload) {
 		var body = new URLSearchParams();
 		body.append('action', action);
 		body.append('tg_nonce', D.nonce || '');
@@ -20,7 +20,9 @@
 				return;
 			}
 			if (Array.isArray(v)) {
-				body.append(k + '[]', v.join(','));
+				v.forEach(function (item) {
+					body.append(k + '[]', String(item));
+				});
 			} else {
 				body.append(k, String(v));
 			}
@@ -31,8 +33,83 @@
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
 			body: body.toString()
 		}).then(function (r) {
-			return r.json();
+			return r.text().then(function (text) {
+				try {
+					return JSON.parse(text);
+				} catch (e) {
+					throw new Error(text || 'Invalid server response.');
+				}
+			});
 		});
+	}
+
+	function restUrl(path) {
+		var base = D.restUrl || '';
+		if (!base && D.ajaxUrl) {
+			base = D.ajaxUrl.replace(/wp-admin\/admin-ajax\.php.*$/, 'wp-json/tg/v1/');
+		}
+		if (!base) {
+			base = '/wp-json/tg/v1/';
+		}
+		return base.replace(/\/+$/, '') + '/' + String(path || '').replace(/^\/+/, '');
+	}
+
+	function restPost(path, payload) {
+		var headers = {
+			'Accept': 'application/json',
+			'Content-Type': 'application/json; charset=UTF-8'
+		};
+		if (D.restNonce) {
+			headers['X-WP-Nonce'] = D.restNonce;
+		}
+		return fetch(restUrl(path), {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: headers,
+			body: JSON.stringify(payload || {})
+		}).then(function (r) {
+			return r.text().then(function (text) {
+				var data = {};
+				try {
+					data = text ? JSON.parse(text) : {};
+				} catch (e) {
+					data = { message: text || 'Invalid server response.' };
+				}
+				if (!r.ok) {
+					return { success: false, data: data, status: r.status };
+				}
+				return { success: true, data: data, status: r.status };
+			});
+		});
+	}
+
+	function restBookingPayload(payload) {
+		var out = {};
+		var customer = {};
+		Object.keys(payload || {}).forEach(function (key) {
+			var match = key.match(/^customer\[([^\]]+)\]$/);
+			if (match) {
+				customer[match[1]] = payload[key];
+			} else {
+				out[key] = payload[key];
+			}
+		});
+		out.customer = customer;
+		return out;
+	}
+
+	function post(action, payload) {
+		// Byethost and some other shared hosts return "Permission denied" for
+		// public requests to wp-admin/admin-ajax.php. Booking traffic therefore
+		// uses the equivalent public REST routes; other theme actions keep their
+		// existing AJAX endpoints.
+		if (action === 'tg_quote') {
+			return restPost('quote', payload);
+		}
+		if (action === 'tg_create_booking') {
+			return restPost('bookings', restBookingPayload(payload));
+		}
+		return ajaxPost(action, payload);
 	}
 
 	function formatLocalDate(iso) {
@@ -135,24 +212,23 @@
 				row.hidden = value === '' || value === null;
 			}
 		}
+		var raw = q.raw || q;
+		var total = w.querySelector('[data-tg-total]');
 		if (q.valid) {
 			setLine('subtotal', q.lines.subtotal);
-			setLine('discount', q.discount > 0 ? '−' + q.lines.discount : '', true);
-			setLine('tax', q.lines.tax, true);
-			setLine('fee', q.lines.fee, true);
-			var total = w.querySelector('[data-tg-total]');
+			setLine('discount', Number(raw.discount || 0) > 0 ? '−' + q.lines.discount : '', true);
+			setLine('tax', Number(raw.tax || 0) > 0 ? q.lines.tax : '', true);
+			setLine('fee', Number(raw.service_fee || 0) > 0 ? q.lines.fee : '', true);
 			if (total) {
 				total.textContent = q.lines.total;
 			}
-		} else if (q.errors && q.errors.length) {
-			var total = w.querySelector('[data-tg-total]');
-			if (total) {
-				total.textContent = q.errors[0];
-			}
+		} else if (q.errors && q.errors.length && total) {
+			total.textContent = q.errors[0];
 		}
 	}
 
 	var quoteTimer = null;
+	var widgetQuoteRequest = 0;
 	function scheduleQuote() {
 		if (quoteTimer) {
 			window.clearTimeout(quoteTimer);
@@ -174,21 +250,37 @@
 			addons: selectedAddons(),
 			coupon: widgetState.coupon
 		};
+		var requestId = ++widgetQuoteRequest;
 		return post('tg_quote', payload).then(function (res) {
+			if (requestId !== widgetQuoteRequest) {
+				return null;
+			}
 			if (res && res.success) {
 				widgetState.quote = res.data;
-				renderQuote();
-				var msg = w.querySelector('[data-tg-coupon-msg]');
-				if (msg && widgetState.coupon) {
-					if (res.data.valid) {
-						msg.textContent = I18N.couponOk || 'Coupon applied.';
-						msg.className = 'tg-coupon-msg ok';
-					} else if (res.data.errors && res.data.errors.length) {
-						msg.textContent = res.data.errors.join(' ');
-						msg.className = 'tg-coupon-msg err';
-					}
+			} else {
+				widgetState.quote = {
+					valid: false,
+					errors: [(res && res.data && res.data.message) || (I18N.error || 'Price could not be calculated.')]
+				};
+			}
+			renderQuote();
+			var msg = w.querySelector('[data-tg-coupon-msg]');
+			if (msg && widgetState.coupon) {
+				if (widgetState.quote.valid && Number((widgetState.quote.raw || widgetState.quote).discount || 0) > 0) {
+					msg.textContent = I18N.couponOk || 'Coupon applied.';
+					msg.className = 'tg-coupon-msg ok';
+				} else if (widgetState.quote.errors && widgetState.quote.errors.length) {
+					msg.textContent = widgetState.quote.errors.join(' ');
+					msg.className = 'tg-coupon-msg err';
 				}
 			}
+			return widgetState.quote;
+		}).catch(function () {
+			if (requestId === widgetQuoteRequest) {
+				widgetState.quote = { valid: false, errors: [I18N.error || 'Price could not be calculated.'] };
+				renderQuote();
+			}
+			return null;
 		});
 	}
 
@@ -197,6 +289,7 @@
 		if (!w) {
 			return;
 		}
+		syncWidgetState();
 		var btn = w.querySelector('[data-tg-book-now]');
 		var date = widgetState.date;
 		if (!date) {
@@ -220,7 +313,9 @@
 				btn.removeAttribute('aria-busy');
 			}
 			if (!res || !res.success || !res.data.valid) {
-				var message = (res && res.data && res.data.errors && res.data.errors.length) ? res.data.errors.join(' ') : (I18N.error || 'Something went wrong.');
+				var message = (res && res.data && res.data.errors && res.data.errors.length)
+					? res.data.errors.join(' ')
+					: ((res && res.data && res.data.message) || I18N.error || 'Something went wrong.');
 				window.tgToast && window.tgToast(message, 'error');
 				renderQuote();
 				return;
@@ -248,11 +343,31 @@
 		});
 	}
 
+	function syncWidgetState() {
+		var w = widget();
+		if (!w) {
+			return;
+		}
+		var adults = w.querySelector('[data-tg-field="adults"]');
+		var children = w.querySelector('[data-tg-field="children"]');
+		var infants = w.querySelector('[data-tg-field="infants"]');
+		if (adults) {
+			widgetState.adults = Math.max(1, parseInt(adults.value, 10) || 1);
+		}
+		if (children) {
+			widgetState.children = Math.max(0, parseInt(children.value, 10) || 0);
+		}
+		if (infants) {
+			widgetState.infants = Math.max(0, parseInt(infants.value, 10) || 0);
+		}
+	}
+
 	function initWidget() {
 		var w = widget();
 		if (!w) {
 			return;
 		}
+		syncWidgetState();
 		populateDates();
 
 		var select = w.querySelector('[data-tg-field="date"]');
@@ -293,36 +408,19 @@
 			bookBtn.addEventListener('click', bookNow);
 		}
 
-		// Keep state in sync with steppers (theme.js already updates hidden inputs).
-		var syncState = function () {
-			var adults = w.querySelector('[data-tg-field="adults"]');
-			var children = w.querySelector('[data-tg-field="children"]');
-			var infants = w.querySelector('[data-tg-field="infants"]');
-			if (adults) {
-				widgetState.adults = parseInt(adults.value, 10) || 1;
-			}
-			if (children) {
-				widgetState.children = parseInt(children.value, 10) || 0;
-			}
-			if (infants) {
-				widgetState.infants = parseInt(infants.value, 10) || 0;
-			}
-		};
-		var interval = window.setInterval(function () {
-			var currentAdults = parseInt((w.querySelector('[data-tg-field="adults"]') || {}).value || '1', 10);
-			if (currentAdults !== widgetState.adults ||
-				(parseInt((w.querySelector('[data-tg-field="children"]') || {}).value || '0', 10) !== widgetState.children) ||
-				(parseInt((w.querySelector('[data-tg-field="infants"]') || {}).value || '0', 10) !== widgetState.infants)) {
-				syncState();
+		// theme.js updates the hidden guest inputs and then calls this module's
+		// onChanged callback. No polling is needed, and state is updated before
+		// the next quote is requested.
+		w.querySelectorAll('[data-tg-field="adults"], [data-tg-field="children"], [data-tg-field="infants"]').forEach(function (input) {
+			input.addEventListener('change', function () {
+				syncWidgetState();
 				scheduleQuote();
-			}
-		}, 400);
-		w.addEventListener('click', function () {
-			window.clearInterval(interval);
-		}, { once: true });
+			});
+		});
 	}
 	window.tgBooking = {
 		onChanged: function () {
+			syncWidgetState();
 			scheduleQuote();
 		}
 	};
@@ -366,29 +464,70 @@
 		set('[data-tg-sum-adults]', String(co.adults));
 		set('[data-tg-sum-children]', String(co.children));
 		set('[data-tg-sum-infants]', String(co.infants));
+
+		var addonNames = [];
+		root.querySelectorAll('[data-tg-co-addon]:checked').forEach(function (input) {
+			addonNames.push(input.getAttribute('data-addon-name') || input.value);
+		});
 		var addonsWrap = root.querySelector('[data-tg-sum-addons-wrap]');
 		if (addonsWrap) {
-			addonsWrap.hidden = co.addons.length === 0;
+			addonsWrap.hidden = addonNames.length === 0;
 		}
+		set('[data-tg-sum-addons]', addonNames.join(', ') || '—');
+
 		var q = co.quote;
+		var note = root.querySelector('[data-tg-summary-note]');
+		var submit = root.querySelector('[data-tg-submit-booking]');
 		if (q && q.valid) {
+			var raw = q.raw || q;
 			set('[data-tg-sum-subtotal]', q.lines.subtotal);
-			set('[data-tg-sum-discount]', q.discount > 0 ? '−' + q.lines.discount : '', true);
-			set('[data-tg-sum-tax]', q.lines.tax, true);
-			set('[data-tg-sum-fee]', q.lines.fee, true);
+			set('[data-tg-sum-discount]', Number(raw.discount || 0) > 0 ? '−' + q.lines.discount : '', true);
+			set('[data-tg-sum-tax]', Number(raw.tax || 0) > 0 ? q.lines.tax : '', true);
+			set('[data-tg-sum-fee]', Number(raw.service_fee || 0) > 0 ? q.lines.fee : '', true);
 			set('[data-tg-sum-total]', q.lines.total);
-			set('[data-tg-sum-deposit]', q.deposit > 0 ? q.lines.deposit : '', true);
-			var note = root.querySelector('[data-tg-summary-note]');
+			set('[data-tg-sum-deposit]', Number(raw.deposit || 0) > 0 ? q.lines.deposit : '', true);
 			if (note) {
 				note.textContent = '';
+				note.classList.remove('tg-text-danger');
+			}
+			if (submit && !submit.hasAttribute('aria-busy')) {
+				submit.disabled = root.getAttribute('data-has-payment') !== '1';
+			}
+		} else {
+			set('[data-tg-sum-subtotal]', '—');
+			set('[data-tg-sum-discount]', '', true);
+			set('[data-tg-sum-tax]', '', true);
+			set('[data-tg-sum-fee]', '', true);
+			set('[data-tg-sum-total]', '—');
+			set('[data-tg-sum-deposit]', '', true);
+			if (note) {
+				if (!co.date) {
+					note.textContent = I18N.selectDate || 'Select a travel date to calculate your total.';
+				} else if (q && q.errors && q.errors.length) {
+					note.textContent = q.errors.join(' ');
+				} else {
+					note.textContent = 'Checking availability and price…';
+				}
+				note.classList.toggle('tg-text-danger', !!(q && q.errors && q.errors.length));
+			}
+			if (submit && !submit.hasAttribute('aria-busy')) {
+				submit.disabled = true;
 			}
 		}
 	}
 
+	var coQuoteTimer = null;
+	var coQuoteRequest = 0;
+
 	function coQuote() {
-		if (!co.tour) {
-			return Promise.resolve();
+		if (!co.tour || !co.date) {
+			co.quote = null;
+			renderSummary();
+			return Promise.resolve(null);
 		}
+		var requestId = ++coQuoteRequest;
+		co.quote = null;
+		renderSummary();
 		return post('tg_quote', {
 			tour_id: co.tour,
 			date: co.date,
@@ -398,13 +537,35 @@
 			addons: co.addons,
 			coupon: co.coupon
 		}).then(function (res) {
+			if (requestId !== coQuoteRequest) {
+				return null;
+			}
 			if (res && res.success) {
 				co.quote = res.data;
+			} else {
+				co.quote = {
+					valid: false,
+					errors: [(res && res.data && res.data.message) || 'Price could not be calculated.']
+				};
+			}
+			renderSummary();
+			return co.quote;
+		}).catch(function () {
+			if (requestId === coQuoteRequest) {
+				co.quote = { valid: false, errors: [(D.i18n && D.i18n.error) || 'Price could not be calculated.'] };
 				renderSummary();
-				return res.data;
 			}
 			return null;
 		});
+	}
+
+	function scheduleCoQuote() {
+		if (coQuoteTimer) {
+			window.clearTimeout(coQuoteTimer);
+		}
+		co.quote = null;
+		renderSummary();
+		coQuoteTimer = window.setTimeout(coQuote, 250);
 	}
 
 	function submitCheckout(e) {
@@ -443,7 +604,17 @@
 		if (terms && !terms.checked) {
 			valid = false;
 		}
-		if (!co.date) {
+		if (!co.date || !co.quote || !co.quote.valid) {
+			var dateInput = form.querySelector('[data-tg-co-date]');
+			if (dateInput && !co.date) {
+				dateInput.setAttribute('aria-invalid', 'true');
+				var dateRow = dateInput.closest('.tg-field');
+				var dateError = dateRow ? dateRow.querySelector('.tg-field-error') : null;
+				if (dateError) {
+					dateError.textContent = 'Please select an available travel date.';
+					dateRow.classList.add('has-error');
+				}
+			}
 			valid = false;
 		}
 		if (!valid) {
@@ -488,8 +659,20 @@
 			btn.removeAttribute('aria-busy');
 			btn.disabled = false;
 			if (res && res.success) {
-				window.location.href = res.data.confirmation_url || (D.confirmationUrl || '/booking-confirmation/?booking=' + encodeURIComponent(res.data.booking_number));
+				if (res.data.payment_url) {
+					window.location.href = res.data.payment_url;
+					return;
+				}
+				var confirmation = res.data.confirmation_url || (D.confirmationUrl || '/booking-confirmation/?booking=' + encodeURIComponent(res.data.booking_number));
+				if (res.data.payment_error) {
+					confirmation += (confirmation.indexOf('?') === -1 ? '?' : '&') + 'payment=failed';
+				}
+				window.location.href = confirmation;
 			} else {
+				if (res && res.status === 401 && res.data && res.data.login_url) {
+					window.location.href = res.data.login_url;
+					return;
+				}
 				var message = (res && res.data && res.data.message) || (D.i18n && D.i18n.error) || 'Booking could not be created.';
 				window.tgToast && window.tgToast(message, 'error');
 				var notice = document.createElement('div');
@@ -502,6 +685,40 @@
 			btn.removeAttribute('aria-busy');
 			btn.disabled = false;
 			window.tgToast && window.tgToast((D.i18n && D.i18n.error) || 'Something went wrong.', 'error');
+		});
+	}
+
+	function readCheckoutSelections() {
+		var root = coEls();
+		if (!root) {
+			return;
+		}
+		var date = root.querySelector('[data-tg-co-date]');
+		var adults = root.querySelector('[data-tg-co-guests="adults"]');
+		var children = root.querySelector('[data-tg-co-guests="children"]');
+		var infants = root.querySelector('[data-tg-co-guests="infants"]');
+		var coupon = root.querySelector('[data-tg-co-coupon]');
+		if (date) {
+			co.date = date.value || '';
+		}
+		if (adults) {
+			co.adults = Math.max(1, parseInt(adults.value, 10) || 1);
+			adults.value = String(co.adults);
+		}
+		if (children) {
+			co.children = Math.max(0, parseInt(children.value, 10) || 0);
+			children.value = String(co.children);
+		}
+		if (infants) {
+			co.infants = Math.max(0, parseInt(infants.value, 10) || 0);
+			infants.value = String(co.infants);
+		}
+		if (coupon) {
+			co.coupon = coupon.value.trim();
+		}
+		co.addons = [];
+		root.querySelectorAll('[data-tg-co-addon]:checked').forEach(function (input) {
+			co.addons.push(input.value);
 		});
 	}
 
@@ -520,13 +737,84 @@
 		if (rawAddons) {
 			co.addons = rawAddons.split(',').filter(Boolean);
 		}
-		renderSummary();
-		coQuote();
 
 		var form = root.querySelector('[data-tg-checkout-form]');
 		if (form) {
 			form.addEventListener('submit', submitCheckout);
+			form.querySelectorAll('input[required], select[required]').forEach(function (input) {
+				input.addEventListener('input', function () {
+					input.removeAttribute('aria-invalid');
+					var field = input.closest('.tg-field');
+					if (field) {
+						field.classList.remove('has-error');
+					}
+				});
+			});
 		}
+
+		var dateInput = root.querySelector('[data-tg-co-date]');
+		if (dateInput) {
+			dateInput.addEventListener('change', function () {
+				dateInput.removeAttribute('aria-invalid');
+				var row = dateInput.closest('.tg-field');
+				if (row) {
+					row.classList.remove('has-error');
+				}
+				readCheckoutSelections();
+				scheduleCoQuote();
+			});
+		}
+		root.querySelectorAll('[data-tg-co-guests]').forEach(function (input) {
+			input.addEventListener('input', function () {
+				readCheckoutSelections();
+				renderSummary();
+				scheduleCoQuote();
+			});
+		});
+		root.querySelectorAll('[data-tg-co-addon]').forEach(function (input) {
+			input.addEventListener('change', function () {
+				readCheckoutSelections();
+				renderSummary();
+				scheduleCoQuote();
+			});
+		});
+
+		var couponInput = root.querySelector('[data-tg-co-coupon]');
+		var couponButton = root.querySelector('[data-tg-co-apply-coupon]');
+		var applyCoupon = function () {
+			readCheckoutSelections();
+			coQuote().then(function (quote) {
+				var message = root.querySelector('[data-tg-co-coupon-msg]');
+				if (!message) {
+					return;
+				}
+				if (!co.coupon) {
+					message.textContent = '';
+					message.className = 'tg-coupon-msg';
+				} else if (quote && quote.valid && Number((quote.raw || quote).discount || 0) > 0) {
+					message.textContent = 'Coupon applied.';
+					message.className = 'tg-coupon-msg ok';
+				} else {
+					message.textContent = (quote && quote.errors && quote.errors.join(' ')) || 'Coupon could not be applied.';
+					message.className = 'tg-coupon-msg err';
+				}
+			});
+		};
+		if (couponButton) {
+			couponButton.addEventListener('click', applyCoupon);
+		}
+		if (couponInput) {
+			couponInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					applyCoupon();
+				}
+			});
+		}
+
+		readCheckoutSelections();
+		renderSummary();
+		coQuote();
 	}
 
 	/* ===================== Booking lookup ===================== */

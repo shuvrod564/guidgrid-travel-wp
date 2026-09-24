@@ -139,21 +139,26 @@ final class TG_Emails {
 			? sprintf( __( 'Thank you for your booking, %s!', 'guidegrid-travel' ), $first )
 			: __( 'Thank you for your booking!', 'guidegrid-travel' );
 
-		$settings = tg_settings();
 		$payment_note = '';
+		$payment       = TG_Payments::latest_for_booking( (int) $booking->id );
+		$method        = $payment ? (string) $payment->payment_method : '';
+		$method_label  = $method ? TG_Payments::method_label( $method ) : '';
 		if ( 'awaiting_payment' === $booking->booking_status ) {
-			$payment_note = '<p>' .
-				__( 'Your booking is reserved. Complete payment to confirm it:', 'guidegrid-travel' ) . '<br>';
-			foreach ( TG_Payments::manual_methods() as $method_key => $label ) {
-				$payment_note .= '• ' . esc_html( $label ) . '<br>';
+			$payment_note = '<p><strong>' . esc_html__( 'Selected payment method:', 'guidegrid-travel' ) . '</strong> ' . esc_html( $method_label ) . '</p>';
+			if ( isset( TG_Payments::manual_methods()[ $method ] ) ) {
+				$payment_note .= '<p>' . esc_html( TG_Payments::manual_instructions( $method ) ) . '</p>';
+			} else {
+				$payment_note .= '<p>' . esc_html__( 'Complete the secure online checkout to confirm your booking.', 'guidegrid-travel' ) . '</p>';
 			}
-			$payment_note .= '</p><p>' .
+			$payment_note .= '<p>' .
 				sprintf(
 					/* translators: %s: hold minutes */
 					__( 'Unpaid bookings are automatically released after %s minutes.', 'guidegrid-travel' ),
-					(int) $settings['hold_minutes']
+					TG_Payments::hold_minutes_for_method( $method )
 				) .
 				'</p>';
+		} elseif ( 'confirmed' === $booking->booking_status && 'unpaid' === $booking->payment_status && TG_Payments::is_deferred_manual( $method ) ) {
+			$payment_note = '<p><strong>' . esc_html__( 'Selected payment method:', 'guidegrid-travel' ) . '</strong> ' . esc_html( $method_label ) . '<br>' . esc_html( TG_Payments::manual_instructions( $method ) ) . '</p>';
 		}
 
 		$inner = '<h1 style="color:#172026;font-size:20px;margin:0 0 8px;">' . esc_html( $greet ) . '</h1>'

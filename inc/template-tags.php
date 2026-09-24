@@ -189,7 +189,7 @@ if ( ! function_exists( 'tg_tour_card' ) ) {
 			</span>
 
 			<button type="button" class="tg-wishlist-btn <?php echo $in_wishlist ? 'is-active' : ''; ?>" data-tour="<?php echo esc_attr( (string) $tour_id ); ?>" aria-pressed="<?php echo $in_wishlist ? 'true' : 'false'; ?>" aria-label="<?php echo $in_wishlist ? esc_attr__( 'Remove from wishlist', 'guidegrid-travel' ) : esc_attr__( 'Save to wishlist', 'guidegrid-travel' ); ?>">
-				<?php echo tg_svg( 'heart' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+				<?php echo tg_lucide( 'heart' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 			</button>
 
 			<div class="tg-tour-card-body">
@@ -442,14 +442,15 @@ if ( ! function_exists( 'tg_tour_facts' ) ) {
 			);
 		}
 
-		echo '<div class="tg-facts" aria-label="' . esc_attr__( 'Quick facts', 'guidegrid-travel' ) . '">';
+		echo '<div class="card section-gap" aria-label="' . esc_attr__( 'Quick facts', 'guidegrid-travel' ) . '">';
+		echo '<div class="tg-tour-section"><h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--tg-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles preview-icon"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>Tour details: </h2></div><div class="tg-facts">';
 		foreach ( $facts as $fact ) {
 			if ( '' === $fact['value'] ) {
 				continue;
 			}
 			echo '<div class="tg-fact"><span class="tg-fact-icon">' . tg_svg( $fact['icon'] ) . '</span><div><strong>' . esc_html( $fact['value'] ) . '</strong><span>' . esc_html( $fact['label'] ) . '</span></div></div>';
 		}
-		echo '</div>';
+		echo '</div></div>';
 	}
 }
 
@@ -503,7 +504,7 @@ if ( ! function_exists( 'tg_tour_gallery' ) ) {
 			<?php if ( count( $images ) > 1 ) : ?>
 				<div class="tg-gallery-thumbs" role="list" aria-label="<?php esc_attr_e( 'Gallery thumbnails', 'guidegrid-travel' ); ?>">
 					<?php foreach ( $images as $i => $url ) : ?>
-						<button type="button" class="<?php echo 0 === $i ? 'is-active' : ''; ?>" data-tg-thumb data-full="<?php echo esc_url( $url ); ?>" role="listitem" aria-label="<?php echo esc_attr( sprintf( /* translators: %d: image number */ __( 'View image %d', 'guidegrid-travel' ), $i + 1 ) ); ?>">
+						<button type="button" class="<?php echo 0 === $i ? 'is-active' : ''; ?>" data-tg-thumb data-tg-full="<?php echo esc_url( $url ); ?>" role="listitem" aria-label="<?php echo esc_attr( sprintf( /* translators: %d: image number */ __( 'View image %d', 'guidegrid-travel' ), $i + 1 ) ); ?>">
 							<img src="<?php echo esc_url( $url ); ?>" alt="" loading="lazy" />
 						</button>
 					<?php endforeach; ?>
@@ -743,7 +744,7 @@ if ( ! function_exists( 'tg_tour_reviews' ) ) {
 						</form>
 					</div>
 				<?php else : ?>
-					<p class="tg-mt-4"><a class="tg-btn tg-btn--secondary" href="<?php echo esc_url( wp_login_url( get_permalink( $tour_id ) . '#tg-reviews' ) ); ?>"><?php esc_html_e( 'Log in to write a review', 'guidegrid-travel' ); ?></a></p>
+					<p class="tg-mt-4"><a class="tg-btn tg-btn--secondary" href="<?php echo esc_url( tg_auth_url( get_permalink( $tour_id ) . '#tg-reviews', 'login' ) ); ?>"><?php esc_html_e( 'Log in to write a review', 'guidegrid-travel' ); ?></a></p>
 				<?php endif; ?>
 			</div>
 		</div>

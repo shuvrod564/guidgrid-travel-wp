@@ -25,14 +25,33 @@ if ( ! function_exists( 'tg_settings' ) ) {
 			'hold_minutes'            => 15,
 			'available_days_ahead'    => 90,
 			'min_booking_notice_days' => 1,
-			'allow_guest_checkout'    => 1,
+			'allow_guest_checkout'    => 0, // Legacy key; require_customer_account is authoritative.
+			'require_customer_account' => 1,
 			'reminder_days'           => array( 7, 3, 1 ),
 			'manual_payment_methods'  => array(
 				'bank'     => __( 'Bank Transfer', 'guidegrid-travel' ),
 				'cash'     => __( 'Cash on Arrival', 'guidegrid-travel' ),
 				'paylater' => __( 'Pay Later at Office', 'guidegrid-travel' ),
 			),
-			'webhook_secret'          => '',
+			'manual_payment_enabled'  => array(
+				'bank'     => 1,
+				'cash'     => 1,
+				'paylater' => 1,
+			),
+			'manual_payment_instructions' => array(
+				'bank'     => __( 'We will send the bank details and payment reference by email. Your seats remain on hold until payment is confirmed.', 'guidegrid-travel' ),
+				'cash'     => __( 'Your reservation is confirmed. Pay in cash at our office or on arrival, as arranged with our team.', 'guidegrid-travel' ),
+				'paylater' => __( 'Your reservation is confirmed. Pay at our office before departure.', 'guidegrid-travel' ),
+			),
+			'stripe_enabled'          => 0,
+			'stripe_secret_key'       => '',
+			'stripe_webhook_secret'   => '',
+			'paypal_enabled'          => 0,
+			'paypal_sandbox'          => 1,
+			'paypal_client_id'        => '',
+			'paypal_client_secret'    => '',
+			'test_gateway_enabled'    => 0,
+			'webhook_secret'          => '', // Legacy custom-adapter webhook secret.
 			'admin_email'             => '',
 			'enquiry_notify_email'    => '',
 			'email_from_name'         => get_bloginfo( 'name' ),
@@ -130,6 +149,56 @@ if ( ! function_exists( 'tg_format_price' ) ) {
 		}
 		$decimals = (float) $amount == floor( $amount ) ? 0 : 2;
 		return tg_currency_symbol( $currency ) . number_format( $amount, $decimals );
+	}
+}
+
+if ( ! function_exists( 'tg_quote_response_payload' ) ) {
+	/**
+	 * Convert an internal pricing quote into the public response shape used by
+	 * both AJAX and REST clients.
+	 *
+	 * @param array $quote Internal quote from TG_Pricing::calculate_quote().
+	 * @return array
+	 */
+	function tg_quote_response_payload( array $quote ): array {
+		$currency    = isset( $quote['currency'] ) ? (string) $quote['currency'] : tg_settings()['currency'];
+		$subtotal    = isset( $quote['subtotal'] ) ? (float) $quote['subtotal'] : 0.0;
+		$discount    = isset( $quote['discount'] ) ? (float) $quote['discount'] : 0.0;
+		$tax         = isset( $quote['tax'] ) ? (float) $quote['tax'] : 0.0;
+		$service_fee = isset( $quote['service_fee'] ) ? (float) $quote['service_fee'] : 0.0;
+		$total       = isset( $quote['total'] ) ? (float) $quote['total'] : 0.0;
+		$deposit     = isset( $quote['deposit'] ) ? (float) $quote['deposit'] : 0.0;
+
+		return array(
+			'valid'       => ! empty( $quote['valid'] ),
+			'errors'      => isset( $quote['errors'] ) && is_array( $quote['errors'] ) ? array_values( $quote['errors'] ) : array(),
+			'lines'       => array(
+				'subtotal' => tg_format_price( $subtotal, $currency ),
+				'discount' => tg_format_price( $discount, $currency ),
+				'tax'      => tg_format_price( $tax, $currency ),
+				'fee'      => tg_format_price( $service_fee, $currency ),
+				'total'    => tg_format_price( $total, $currency ),
+				'deposit'  => tg_format_price( $deposit, $currency ),
+			),
+			'raw'         => array(
+				'subtotal'    => $subtotal,
+				'discount'    => $discount,
+				'tax'         => $tax,
+				'service_fee' => $service_fee,
+				'total'       => $total,
+				'deposit'     => $deposit,
+			),
+			// Keep top-level numbers for backwards compatibility with booking.js.
+			'subtotal'    => $subtotal,
+			'discount'    => $discount,
+			'tax'         => $tax,
+			'service_fee' => $service_fee,
+			'total'       => $total,
+			'deposit'     => $deposit,
+			'currency'    => $currency,
+			'prices'      => isset( $quote['prices'] ) && is_array( $quote['prices'] ) ? $quote['prices'] : array(),
+			'addons'      => isset( $quote['addons'] ) && is_array( $quote['addons'] ) ? $quote['addons'] : array(),
+		);
 	}
 }
 
@@ -378,11 +447,26 @@ if ( ! function_exists( 'tg_rate_limit' ) ) {
 	 */
 	function tg_rate_limit( string $key, int $max, int $window ) {
 		$bucket = 'tg_rl_' . md5( $key );
-		$count  = (int) get_transient( $bucket );
-		if ( $count >= $max ) {
+		$now    = time();
+		$state  = get_transient( $bucket );
+
+		// Versions before 1.0.1 stored a scalar and then accidentally changed
+		// its timeout to zero, which could block a visitor permanently. Discard
+		// that legacy value instead of carrying the lock forward.
+		if ( ! is_array( $state ) || ! isset( $state['count'], $state['reset'] ) || (int) $state['reset'] <= $now ) {
+			$state = array(
+				'count' => 0,
+				'reset' => $now + max( 1, $window ),
+			);
+		}
+
+		if ( (int) $state['count'] >= $max ) {
 			return new WP_Error( 'tg_rate_limited', __( 'Too many requests. Please try again later.', 'guidegrid-travel' ) );
 		}
-		set_transient( $bucket, $count + 1, $count ? 0 : $window );
+
+		$state['count'] = (int) $state['count'] + 1;
+		$ttl            = max( 1, (int) $state['reset'] - $now );
+		set_transient( $bucket, $state, $ttl );
 		return true;
 	}
 }
@@ -408,17 +492,27 @@ if ( ! function_exists( 'tg_page_url_by_template' ) ) {
 	 * @return string
 	 */
 	function tg_page_url_by_template( string $template ): string {
-		$pages = get_pages(
-			array(
-				'meta_key'   => '_wp_page_template', // phpcs:ignore WordPress.DB.SlowDBQuery
-				'meta_value' => $template,           // phpcs:ignore WordPress.DB.SlowDBQuery
-				'number'     => 1,
-			)
-		);
-		if ( empty( $pages ) ) {
-			return '';
+		// WordPress stores templates relative to the theme root. Older theme
+		// code passed only the basename even though activation stored the full
+		// page-templates/... path, so the workflow page could never be found.
+		$candidates = array( $template );
+		if ( false === strpos( $template, '/' ) ) {
+			$candidates[] = 'page-templates/' . $template;
 		}
-		return get_permalink( $pages[0]->ID );
+
+		foreach ( array_unique( $candidates ) as $candidate ) {
+			$pages = get_pages(
+				array(
+					'meta_key'   => '_wp_page_template', // phpcs:ignore WordPress.DB.SlowDBQuery
+					'meta_value' => $candidate,          // phpcs:ignore WordPress.DB.SlowDBQuery
+					'number'     => 1,
+				)
+			);
+			if ( ! empty( $pages ) ) {
+				return get_permalink( $pages[0]->ID );
+			}
+		}
+		return '';
 	}
 }
 
@@ -431,9 +525,10 @@ if ( ! function_exists( 'tg_booking_page_url' ) ) {
 	 * @return string
 	 */
 	function tg_booking_page_url( int $tour_id ): string {
-		$url = tg_page_url_by_template( 'template-booking.php' );
+		$url = tg_page_url_by_template( 'page-templates/template-booking.php' );
 		if ( ! $url ) {
-			$url = home_url( '/booking/' );
+			$page_id = tg_page_id_by_path( 'booking' );
+			$url     = $page_id ? get_permalink( $page_id ) : add_query_arg( 'pagename', 'booking', home_url( '/' ) );
 		}
 		return add_query_arg( array( 'tour_id' => (string) $tour_id ), $url );
 	}
@@ -447,9 +542,10 @@ if ( ! function_exists( 'tg_confirmation_page_url' ) ) {
 	 * @return string
 	 */
 	function tg_confirmation_page_url( string $number ): string {
-		$url = tg_page_url_by_template( 'template-confirmation.php' );
+		$url = tg_page_url_by_template( 'page-templates/template-confirmation.php' );
 		if ( ! $url ) {
-			$url = home_url( '/booking-confirmation/' );
+			$page_id = tg_page_id_by_path( 'booking-confirmation' );
+			$url     = $page_id ? get_permalink( $page_id ) : add_query_arg( 'pagename', 'booking-confirmation', home_url( '/' ) );
 		}
 		return add_query_arg( 'booking', $number, $url );
 	}
@@ -462,8 +558,12 @@ if ( ! function_exists( 'tg_booking_lookup_url' ) ) {
 	 * @return string
 	 */
 	function tg_booking_lookup_url(): string {
-		$url = tg_page_url_by_template( 'template-booking-lookup.php' );
-		return $url ? $url : home_url( '/booking-lookup/' );
+		$url = tg_page_url_by_template( 'page-templates/template-booking-lookup.php' );
+		if ( $url ) {
+			return $url;
+		}
+		$page_id = tg_page_id_by_path( 'booking-lookup' );
+		return $page_id ? get_permalink( $page_id ) : add_query_arg( 'pagename', 'booking-lookup', home_url( '/' ) );
 	}
 }
 
@@ -475,9 +575,10 @@ if ( ! function_exists( 'tg_account_url' ) ) {
 	 * @return string
 	 */
 	function tg_account_url( string $tab = '' ): string {
-		$url = tg_page_url_by_template( 'template-my-account.php' );
+		$url = tg_page_url_by_template( 'page-templates/template-my-account.php' );
 		if ( ! $url ) {
-			$url = home_url( '/my-account/' );
+			$page_id = tg_page_id_by_path( 'my-account' );
+			$url     = $page_id ? get_permalink( $page_id ) : add_query_arg( 'pagename', 'my-account', home_url( '/' ) );
 		}
 		if ( $tab ) {
 			$url = add_query_arg( 'tg_tab', $tab, $url );
@@ -554,7 +655,7 @@ if ( ! function_exists( 'tg_svg' ) ) {
 			'check'      => '<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>',
 			'close'      => '<path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4z"/>',
 			'heart'      => '<path d="M12 21s-7.5-4.7-10-9.3C.4 8.6 2.2 5 5.6 5c2 0 3.4 1.1 4.4 2.5h4c1-1.4 2.4-2.5 4.4-2.5 3.4 0 5.2 3.6 3.6 6.7C19.5 16.3 12 21 12 21z"/>',
-			'search'     => '<path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/>',
+			'search'     => '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
 			'user'       => '<path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5z"/>',
 			'menu'       => '<path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/>',
 			'chevron'    => '<path d="m12 15.4-6-6 1.4-1.4 4.6 4.6 4.6-4.6L18 9.4l-6 6z"/>',
@@ -590,7 +691,28 @@ if ( ! function_exists( 'tg_svg' ) ) {
 		$path = $icons[ $name ] ?? $icons['check'];
 		return '<svg class="tg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' . $path . '</svg>';
 	}
-}
+} 
+
+if ( ! function_exists( 'tg_lucide' ) ) {
+	/**
+	 * Inline SVG icon (stroke/fill paths, currentColor).
+	 *
+	 * @param string $name Icon key.
+	 * @return string
+	 */
+	function tg_lucide( string $name ): string {
+		$icons = array(
+			'search'     => '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>', 
+			'heart'     => '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/>', 
+			'question-mark'     => '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>', 
+			'user'     => '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', 
+			'menu'     => '<path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/>', 
+		);
+
+		$path = $icons[ $name ] ?? $icons['check'];
+		return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search preview-icon" aria-hidden="true" focusable="false">' . $path . '</svg>';
+	}
+} 
 
 if ( ! function_exists( 'tg_tour_gallery_ids' ) ) {
 	/**

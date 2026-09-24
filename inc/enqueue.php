@@ -40,6 +40,8 @@ if ( ! function_exists( 'tg_frontend_assets' ) ) {
             'tgData',
             array(
                 'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+                'restUrl'    => esc_url_raw( rest_url( 'tg/v1/' ) ),
+                'restNonce'  => wp_create_nonce( 'wp_rest' ),
                 'nonce'      => wp_create_nonce( 'tg_frontend' ),
                 'loggedIn'   => is_user_logged_in(),
                 'accountUrl' => tg_account_url(),
@@ -151,15 +153,25 @@ if ( ! function_exists( 'tg_tour_script_data' ) ) {
      * @return void
      */
     function tg_tour_script_data( int|string|null $tour_id = 0 ): void {
-        // Resolve tour ID if hooked directly or passed empty
-        $tour_id = (int) $tour_id;
-        if ( 0 === $tour_id ) {
-            $tour_id = get_the_ID();
-        }
-
-        if ( ! $tour_id || ! tg_is_booking_context() || ! wp_script_is( 'tg-booking', 'enqueued' ) ) {
+        // This payload belongs only to a single tour page. On a checkout page,
+        // get_the_ID() is the booking PAGE id, not the selected tour id.
+        if ( ! is_singular( 'tour' ) || ! wp_script_is( 'tg-booking', 'enqueued' ) ) {
             return;
         }
+
+        $tour_id = (int) get_queried_object_id();
+        if ( ! $tour_id ) {
+            return;
+        }
+
+        // single-tour.php used to call this function a second time, which
+        // printed duplicate `var tgTour` blocks. Keep the guard for child
+        // themes or integrations that may still call it directly.
+        static $localized_tours = array();
+        if ( isset( $localized_tours[ $tour_id ] ) ) {
+            return;
+        }
+        $localized_tours[ $tour_id ] = true;
 
         $settings   = tg_settings();
         $price_info = tg_tour_price_info( $tour_id );

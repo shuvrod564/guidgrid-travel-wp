@@ -56,6 +56,28 @@ if ( ! function_exists( 'tg_add_roles' ) ) {
 				'manage_tg_bookings' => true,
 			)
 		);
+
+		// add_role() does not update roles that already exist. Explicitly restore
+		// the theme capabilities on every load so upgrades and migrated sites are
+		// not locked out of the booking console.
+		$tour_manager = get_role( 'tour_manager' );
+		if ( $tour_manager ) {
+			$tour_manager->add_cap( 'manage_tg' );
+			$tour_manager->add_cap( 'manage_tg_bookings' );
+		}
+		$booking_manager = get_role( 'booking_manager' );
+		if ( $booking_manager ) {
+			$booking_manager->add_cap( 'manage_tg_bookings' );
+		}
+
+		// WordPress administrators must always be able to configure the theme
+		// and manage bookings. Custom capabilities are not granted to the
+		// administrator role automatically.
+		$administrator = get_role( 'administrator' );
+		if ( $administrator ) {
+			$administrator->add_cap( 'manage_tg' );
+			$administrator->add_cap( 'manage_tg_bookings' );
+		}
 	}
 }
 add_action( 'init', 'tg_add_roles' );

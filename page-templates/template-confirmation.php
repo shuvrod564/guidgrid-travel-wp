@@ -20,11 +20,17 @@ if ( ! $tg_bk ) {
 	$tg_bk = (int) $tg_num ? TG_Bookings::get( (int) $tg_num ) : null;
 }
 
-$tg_tour      = $tg_bk ? get_post( (int) $tg_bk->tour_id ) : null;
-$tg_c         = $tg_bk ? TG_Bookings::customer( $tg_bk ) : array();
-$tg_addons    = $tg_bk ? TG_Bookings::addons( $tg_bk ) : array();
-$tg_guests    = $tg_bk ? (int) $tg_bk->adult_count + (int) $tg_bk->child_count + (int) $tg_bk->infant_count : 0;
-$settings     = tg_settings();
+$tg_tour          = $tg_bk ? get_post( (int) $tg_bk->tour_id ) : null;
+$tg_c             = $tg_bk ? TG_Bookings::customer( $tg_bk ) : array();
+$tg_addons        = $tg_bk ? TG_Bookings::addons( $tg_bk ) : array();
+$tg_guests        = $tg_bk ? (int) $tg_bk->adult_count + (int) $tg_bk->child_count + (int) $tg_bk->infant_count : 0;
+$tg_customer_name = trim( (string) ( $tg_c['first_name'] ?? '' ) . ' ' . (string) ( $tg_c['last_name'] ?? '' ) );
+$tg_customer_name = $tg_customer_name ? $tg_customer_name : (string) ( $tg_c['email'] ?? '' );
+$settings         = tg_settings();
+$tg_payment       = $tg_bk ? TG_Payments::latest_for_booking( (int) $tg_bk->id ) : null;
+$tg_method        = $tg_payment ? (string) $tg_payment->payment_method : '';
+$tg_method_label  = $tg_method ? TG_Payments::method_label( $tg_method ) : '';
+$tg_payment_return = isset( $_GET['payment'] ) ? sanitize_key( wp_unslash( $_GET['payment'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 ?>
 
 <section class="tg-section" style="padding-top:24px;">
@@ -57,23 +63,58 @@ $settings     = tg_settings();
 						</p>
 					</div>
 
+					<?php if ( 'success' === $tg_payment_return && 'paid' === $tg_bk->payment_status ) : ?>
+						<div class="tg-notice tg-notice--success" style="margin-top:20px;"><strong><?php esc_html_e( 'Payment confirmed', 'guidegrid-travel' ); ?></strong> <?php echo 'test_gateway' === $tg_method ? esc_html__( 'The simulated payment was approved. No money was charged.', 'guidegrid-travel' ) : esc_html__( 'Your payment was verified and your reservation is confirmed.', 'guidegrid-travel' ); ?></div>
+					<?php elseif ( 'simulate' === $tg_payment_return ) : ?>
+						<div class="tg-notice tg-notice--info" style="margin-top:20px;"><strong><?php esc_html_e( 'Test payment only', 'guidegrid-travel' ); ?></strong> <?php esc_html_e( 'Choose an outcome below. This simulator never contacts a payment provider and never charges money.', 'guidegrid-travel' ); ?></div>
+					<?php elseif ( 'declined' === $tg_payment_return ) : ?>
+						<div class="tg-notice tg-notice--error" style="margin-top:20px;"><strong><?php esc_html_e( 'Simulated decline recorded.', 'guidegrid-travel' ); ?></strong> <?php esc_html_e( 'No charge was attempted. You can now test an approval while the reservation hold remains active.', 'guidegrid-travel' ); ?></div>
+					<?php elseif ( 'processing' === $tg_payment_return && 'paid' !== $tg_bk->payment_status ) : ?>
+						<div class="tg-notice tg-notice--info" style="margin-top:20px;"><strong><?php esc_html_e( 'Payment is being verified', 'guidegrid-travel' ); ?></strong> <?php esc_html_e( 'Stripe is confirming the payment securely. Refresh this page shortly if the status still shows pending.', 'guidegrid-travel' ); ?></div>
+					<?php elseif ( in_array( $tg_payment_return, array( 'failed', 'cancelled', 'invalid', 'unavailable' ), true ) ) : ?>
+						<div class="tg-notice tg-notice--error" style="margin-top:20px;"><strong><?php esc_html_e( 'Online payment was not completed.', 'guidegrid-travel' ); ?></strong> <?php esc_html_e( 'Your booking has not been marked paid. Please retry or contact our team and quote the booking number above.', 'guidegrid-travel' ); ?></div>
+					<?php endif; ?>
+
 					<?php if ( 'awaiting_payment' === $tg_bk->booking_status || 'pending' === $tg_bk->booking_status ) : ?>
 						<div class="tg-notice tg-notice--warning" style="margin-top:20px;">
 							<strong><?php esc_html_e( 'Payment pending', 'guidegrid-travel' ); ?></strong>
-							<p style="margin:6px 0 0;">
-								<?php
-								printf(
-									/* translators: %d: hold minutes */
-									esc_html__( 'Your seats are held for %d minutes. Choose a payment method to confirm the booking:', 'guidegrid-travel' ),
-									(int) $settings['hold_minutes']
-								);
-								?>
-							</p>
-							<ul style="margin:8px 0 0;">
-								<?php foreach ( TG_Payments::manual_methods() as $tg_mk => $tg_ml ) : ?>
-									<li><?php echo esc_html( $tg_ml ); ?></li>
-								<?php endforeach; ?>
-							</ul>
+							<?php if ( $tg_method_label ) : ?><p style="margin:6px 0 0;"><strong><?php esc_html_e( 'Selected method:', 'guidegrid-travel' ); ?></strong> <?php echo esc_html( $tg_method_label ); ?></p><?php endif; ?>
+							<?php if ( 'bank' === $tg_method ) : ?>
+								<p style="margin:6px 0 0;"><?php echo esc_html( TG_Payments::manual_instructions( 'bank' ) ); ?></p>
+							<?php else : ?>
+								<p style="margin:6px 0 0;">
+									<?php
+									printf(
+										/* translators: %d: hold minutes */
+										esc_html__( 'Your seats are held for %d minutes while payment is completed.', 'guidegrid-travel' ),
+										TG_Payments::hold_minutes_for_method( $tg_method )
+									);
+									?>
+								</p>
+							<?php endif; ?>
+							<?php if ( 'test_gateway' === $tg_method && isset( TG_Payments::adapters()[ $tg_method ] ) && is_user_logged_in() ) : ?>
+								<form method="post" class="tg-no-print" style="margin-top:12px;">
+									<?php wp_nonce_field( 'tg_test_payment_' . $tg_bk->booking_number, 'tg_payment_nonce' ); ?>
+									<input type="hidden" name="tg_payment_action" value="test_decision" />
+									<input type="hidden" name="booking_number" value="<?php echo esc_attr( $tg_bk->booking_number ); ?>" />
+									<p><strong><?php esc_html_e( 'Simulator outcome:', 'guidegrid-travel' ); ?></strong> <?php esc_html_e( 'Neither choice charges money.', 'guidegrid-travel' ); ?></p>
+									<button type="submit" name="test_decision" value="approve" class="tg-btn tg-btn--primary tg-btn--sm"><?php esc_html_e( 'Simulate approval', 'guidegrid-travel' ); ?></button>
+									<button type="submit" name="test_decision" value="decline" class="tg-btn tg-btn--secondary tg-btn--sm"><?php esc_html_e( 'Simulate decline', 'guidegrid-travel' ); ?></button>
+								</form>
+							<?php elseif ( isset( TG_Payments::adapters()[ $tg_method ] ) && is_user_logged_in() ) : ?>
+								<form method="post" class="tg-no-print" style="margin-top:12px;">
+									<?php wp_nonce_field( 'tg_restart_payment_' . $tg_bk->booking_number, 'tg_payment_nonce' ); ?>
+									<input type="hidden" name="tg_payment_action" value="restart" />
+									<input type="hidden" name="booking_number" value="<?php echo esc_attr( $tg_bk->booking_number ); ?>" />
+									<button type="submit" class="tg-btn tg-btn--primary tg-btn--sm"><?php esc_html_e( 'Continue secure payment', 'guidegrid-travel' ); ?></button>
+								</form>
+							<?php endif; ?>
+						</div>
+					<?php elseif ( 'confirmed' === $tg_bk->booking_status && 'unpaid' === $tg_bk->payment_status && TG_Payments::is_deferred_manual( $tg_method ) ) : ?>
+						<div class="tg-notice tg-notice--info" style="margin-top:20px;">
+							<strong><?php esc_html_e( 'Payment arranged', 'guidegrid-travel' ); ?></strong>
+							<?php if ( $tg_method_label ) : ?><p style="margin:6px 0 0;"><strong><?php esc_html_e( 'Selected method:', 'guidegrid-travel' ); ?></strong> <?php echo esc_html( $tg_method_label ); ?></p><?php endif; ?>
+							<p style="margin:6px 0 0;"><?php echo esc_html( TG_Payments::manual_instructions( $tg_method ) ); ?></p>
 						</div>
 					<?php endif; ?>
 
@@ -92,7 +133,7 @@ $settings     = tg_settings();
 						</div>
 						<div class="tg-confirm-item">
 							<small><?php esc_html_e( 'Booked by', 'guidegrid-travel' ); ?></small>
-							<strong><?php echo esc_html( ( $tg_c['first_name'] . ' ' . $tg_c['last_name'] ) ? ( $tg_c['first_name'] . ' ' . $tg_c['last_name'] ) : ( $tg_c['email'] ?? '' ); ?></strong>
+							<strong><?php echo esc_html( $tg_customer_name ); ?></strong>
 						</div>
 					</div>
 

@@ -36,12 +36,16 @@ $tg_pre    = array(
 	'coupon'   => $tg_q( 'coupon' ),
 );
 
-$settings  = tg_settings();
-$user      = wp_get_current_user();
-$logged_in = is_user_logged_in();
+$settings           = tg_settings();
+$user               = wp_get_current_user();
+$logged_in          = is_user_logged_in();
+$tg_manual_methods  = TG_Payments::manual_methods();
+$tg_online_adapters = TG_Payments::adapters();
+$tg_method_keys     = array_merge( array_keys( $tg_manual_methods ), array_keys( $tg_online_adapters ) );
+$tg_default_method  = $tg_method_keys ? (string) $tg_method_keys[0] : '';
 
 $tg_prefill = array(
-	'first_name' => $logged_in ? $user->first_name : '',
+	'first_name' => $logged_in ? ( $user->first_name ? $user->first_name : $user->display_name ) : '',
 	'last_name'  => $logged_in ? $user->last_name : '',
 	'email'      => $logged_in ? $user->user_email : '',
 	'phone'      => $logged_in ? get_user_meta( $user->ID, '_tg_phone', true ) : '',
@@ -50,6 +54,22 @@ $tg_prefill = array(
 );
 
 $tg_addons_for_tour = $tg_checkout_tour ? TG_Addons::get_for_tour( $tg_checkout_tour->ID ) : array();
+$tg_checkout_dates  = array();
+$tg_checkout_prices = $tg_checkout_tour ? tg_tour_price_info( $tg_checkout_tour->ID ) : array( 'currency' => $settings['currency'] );
+
+if ( $tg_checkout_tour ) {
+	try {
+		$tg_checkout_dates = TG_Availability::get_dates( $tg_checkout_tour->ID );
+	} catch ( \Throwable $e ) { // A missing/outdated custom table should not break the whole checkout page.
+		$tg_checkout_dates = array();
+	}
+
+	// Do not keep a stale/unavailable date from an old shared checkout URL.
+	$tg_checkout_date_values = array_column( $tg_checkout_dates, 'date' );
+	if ( $tg_pre['date'] && ! in_array( $tg_pre['date'], $tg_checkout_date_values, true ) ) {
+		$tg_pre['date'] = '';
+	}
+}
 ?>
 
 <section class="tg-section" style="padding-top:24px;">
@@ -80,22 +100,85 @@ $tg_addons_for_tour = $tg_checkout_tour ? TG_Addons::get_for_tour( $tg_checkout_
 				data-children="<?php echo esc_attr( (string) $tg_pre['children'] ); ?>"
 				data-infants="<?php echo esc_attr( (string) $tg_pre['infants'] ); ?>"
 				data-addons="<?php echo esc_attr( implode( ',', $tg_pre['addons'] ) ); ?>"
-				data-coupon="<?php echo esc_attr( $tg_pre['coupon'] ); ?>">
+				data-coupon="<?php echo esc_attr( $tg_pre['coupon'] ); ?>"
+				data-has-payment="<?php echo $tg_default_method ? '1' : '0'; ?>">
 
 				<!-- ============ Form ============ -->
 				<form class="tg-checkout-form" method="post" data-tg-checkout-form novalidate>
+					<section class="tg-checkout-options" aria-labelledby="tg-trip-options-title">
+						<h2 id="tg-trip-options-title"><?php esc_html_e( 'Tour Details', 'guidegrid-travel' ); ?></h2>
+						<div class="tg-form-grid tg-form-grid--trip">
+							<div class="tg-field tg-form-row tg-trip-date-field">
+								<label class="tg-label" for="tg-co-date"><?php esc_html_e( 'Travel Date', 'guidegrid-travel' ); ?> *</label>
+								<select class="tg-select" id="tg-co-date" name="date" data-tg-co-date required>
+									<option value=""><?php esc_html_e( 'Select a date…', 'guidegrid-travel' ); ?></option>
+									<?php foreach ( $tg_checkout_dates as $tg_date ) : ?>
+										<?php
+										$tg_date_label = tg_format_date( $tg_date['date'] );
+										if ( isset( $tg_date['remaining'] ) && (int) $tg_date['remaining'] >= 0 && (int) $tg_date['remaining'] <= 5 ) {
+											$tg_date_label .= sprintf(
+												/* translators: %d: remaining seats */
+												__( ' — %d seats left', 'guidegrid-travel' ),
+												(int) $tg_date['remaining']
+											);
+										}
+										?>
+										<option value="<?php echo esc_attr( $tg_date['date'] ); ?>" <?php selected( $tg_pre['date'], $tg_date['date'] ); ?>><?php echo esc_html( $tg_date_label ); ?></option>
+									<?php endforeach; ?>
+								</select>
+								<?php if ( empty( $tg_checkout_dates ) ) : ?>
+									<p class="tg-field-help"><?php esc_html_e( 'No dates are currently available for this tour.', 'guidegrid-travel' ); ?></p>
+								<?php endif; ?>
+								<span class="tg-field-error" aria-live="polite"></span>
+							</div>
+							<div class="tg-field tg-form-row">
+								<label class="tg-label" for="tg-co-adults"><?php esc_html_e( 'Adults', 'guidegrid-travel' ); ?> *</label>
+								<input class="tg-input" type="number" id="tg-co-adults" name="adults" value="<?php echo esc_attr( (string) $tg_pre['adults'] ); ?>" min="1" step="1" inputmode="numeric" data-tg-co-guests="adults" required />
+							</div>
+							<div class="tg-field tg-form-row">
+								<label class="tg-label" for="tg-co-children"><?php esc_html_e( 'Children', 'guidegrid-travel' ); ?></label>
+								<input class="tg-input" type="number" id="tg-co-children" name="children" value="<?php echo esc_attr( (string) $tg_pre['children'] ); ?>" min="0" step="1" inputmode="numeric" data-tg-co-guests="children" />
+							</div>
+							<div class="tg-field tg-form-row">
+								<label class="tg-label" for="tg-co-infants"><?php esc_html_e( 'Infants', 'guidegrid-travel' ); ?></label>
+								<input class="tg-input" type="number" id="tg-co-infants" name="infants" value="<?php echo esc_attr( (string) $tg_pre['infants'] ); ?>" min="0" step="1" inputmode="numeric" data-tg-co-guests="infants" />
+							</div>
+						</div>
+
+						<?php if ( $tg_addons_for_tour ) : ?>
+							<fieldset class="tg-checkout-addons">
+								<legend class="tg-label"><?php esc_html_e( 'Add-ons', 'guidegrid-travel' ); ?></legend>
+								<div class="tg-bw-addons">
+									<?php foreach ( $tg_addons_for_tour as $tg_addon ) : ?>
+										<label class="tg-bw-addon">
+											<input type="checkbox" name="addons[]" value="<?php echo esc_attr( (string) $tg_addon['id'] ); ?>" data-tg-co-addon data-addon-name="<?php echo esc_attr( $tg_addon['name'] ); ?>" <?php checked( in_array( (int) $tg_addon['id'], $tg_pre['addons'], true ) ); ?> />
+											<span class="tg-addon-name"><?php echo esc_html( $tg_addon['name'] ); ?><small><?php echo esc_html( TG_Addons::unit_label( $tg_addon['unit'] ) ); ?></small></span>
+											<span class="tg-addon-price"><?php echo esc_html( tg_format_price( (float) $tg_addon['price'], $tg_checkout_prices['currency'] ) ); ?></span>
+										</label>
+									<?php endforeach; ?>
+								</div>
+							</fieldset>
+						<?php endif; ?>
+
+						<div class="tg-field tg-form-row tg-checkout-coupon">
+							<label class="tg-label" for="tg-co-coupon"><?php esc_html_e( 'Coupon code', 'guidegrid-travel' ); ?></label>
+							<div class="tg-coupon-row">
+								<input type="text" class="tg-input" id="tg-co-coupon" name="coupon" value="<?php echo esc_attr( $tg_pre['coupon'] ); ?>" placeholder="<?php esc_attr_e( 'e.g. WELCOME10', 'guidegrid-travel' ); ?>" data-tg-co-coupon />
+								<button type="button" class="tg-btn tg-btn--secondary tg-btn--sm" data-tg-co-apply-coupon><?php esc_html_e( 'Apply', 'guidegrid-travel' ); ?></button>
+							</div>
+							<p class="tg-coupon-msg" data-tg-co-coupon-msg aria-live="polite"></p>
+						</div>
+					</section>
+
 					<h2><?php esc_html_e( 'Contact Details', 'guidegrid-travel' ); ?></h2>
 
-					<?php if ( $logged_in ) : ?>
-						<p class="tg-notice tg-notice--info"><?php esc_html_e( 'Booking as', 'guidegrid-travel' ); ?> <strong><?php echo esc_html( $user->display_name ); ?></strong> (<?php echo esc_html( $user->user_email ); ?>)</p>
-					<?php else : ?>
-						<p class="tg-notice tg-notice--info"><?php esc_html_e( 'Booking as a guest. Create a free account to save bookings and write reviews.', 'guidegrid-travel' ); ?></p>
-					<?php endif; ?>
+					<p class="tg-notice tg-notice--info"><?php esc_html_e( 'Booking as', 'guidegrid-travel' ); ?> <strong><?php echo esc_html( $user->display_name ); ?></strong> (<?php echo esc_html( $user->user_email ); ?>)</p>
 
 					<div class="tg-form-grid">
 						<div class="tg-field tg-form-row">
 							<label class="tg-label" for="tg-co-fname"><?php esc_html_e( 'First Name', 'guidegrid-travel' ); ?> *</label>
 							<input type="text" id="tg-co-fname" name="customer[first_name]" class="tg-input" value="<?php echo esc_attr( $tg_prefill['first_name'] ); ?>" required autocomplete="given-name" />
+							<span class="tg-field-error" aria-live="polite"></span>
 						</div>
 						<div class="tg-field tg-form-row">
 							<label class="tg-label" for="tg-co-lname"><?php esc_html_e( 'Last Name', 'guidegrid-travel' ); ?></label>
@@ -103,7 +186,8 @@ $tg_addons_for_tour = $tg_checkout_tour ? TG_Addons::get_for_tour( $tg_checkout_
 						</div>
 						<div class="tg-field tg-form-row">
 							<label class="tg-label" for="tg-co-email"><?php esc_html_e( 'Email', 'guidegrid-travel' ); ?> *</label>
-							<input type="email" id="tg-co-email" name="customer[email]" class="tg-input" value="<?php echo esc_attr( $tg_prefill['email'] ); ?>" required autocomplete="email" />
+							<input type="email" id="tg-co-email" name="customer[email]" class="tg-input" value="<?php echo esc_attr( $tg_prefill['email'] ); ?>" required readonly autocomplete="email" />
+							<span class="tg-field-error" aria-live="polite"></span>
 						</div>
 						<div class="tg-field tg-form-row">
 							<label class="tg-label" for="tg-co-phone"><?php esc_html_e( 'Phone', 'guidegrid-travel' ); ?></label>
@@ -131,34 +215,27 @@ $tg_addons_for_tour = $tg_checkout_tour ? TG_Addons::get_for_tour( $tg_checkout_
 
 					<h2><?php esc_html_e( 'Payment Method', 'guidegrid-travel' ); ?></h2>
 					<div class="tg-payment-methods">
-						<?php foreach ( TG_Payments::manual_methods() as $tg_method_key => $tg_method_label ) : ?>
+						<?php foreach ( $tg_manual_methods as $tg_method_key => $tg_method_label ) : ?>
 							<label class="tg-payment-option">
-								<input type="radio" name="payment_method" value="<?php echo esc_attr( $tg_method_key ); ?>" <?php echo 'bank' === $tg_method_key ? 'checked' : ''; ?> />
+								<input type="radio" name="payment_method" value="<?php echo esc_attr( $tg_method_key ); ?>" <?php checked( $tg_default_method, $tg_method_key ); ?> />
 								<span>
 									<span class="tg-po-name"><?php echo esc_html( $tg_method_label ); ?></span>
-									<span class="tg-po-desc">
-										<?php
-										if ( 'bank' === $tg_method_key ) {
-											esc_html_e( 'We will share bank details after your booking is created.', 'guidegrid-travel' );
-										} elseif ( 'cash' === $tg_method_key ) {
-											esc_html_e( 'Pay in cash at our office or on arrival.', 'guidegrid-travel' );
-										} else {
-											esc_html_e( 'Reserve now, pay at our office before departure.', 'guidegrid-travel' );
-										}
-										?>
-									</span>
+									<span class="tg-po-desc"><?php echo esc_html( TG_Payments::manual_instructions( $tg_method_key ) ); ?></span>
 								</span>
 							</label>
 						<?php endforeach; ?>
-						<?php foreach ( TG_Payments::adapters() as $tg_adapter ) : ?>
+						<?php foreach ( $tg_online_adapters as $tg_adapter ) : ?>
 							<label class="tg-payment-option">
-								<input type="radio" name="payment_method" value="<?php echo esc_attr( $tg_adapter->id() ); ?>" />
+								<input type="radio" name="payment_method" value="<?php echo esc_attr( $tg_adapter->id() ); ?>" <?php checked( $tg_default_method, $tg_adapter->id() ); ?> />
 								<span>
 									<span class="tg-po-name"><?php echo esc_html( $tg_adapter->label() ); ?></span>
 									<span class="tg-po-desc"><?php echo esc_html( $tg_adapter->description() ); ?></span>
 								</span>
 							</label>
 						<?php endforeach; ?>
+						<?php if ( '' === $tg_default_method ) : ?>
+							<div class="tg-notice tg-notice--error"><?php esc_html_e( 'No payment method is currently available. Please contact us before booking.', 'guidegrid-travel' ); ?></div>
+						<?php endif; ?>
 					</div>
 
 					<div class="tg-field tg-form-row" style="margin-top:18px;">

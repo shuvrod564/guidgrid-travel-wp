@@ -105,7 +105,11 @@ final class TG_Bookings {
 		$day    = gmdate( 'Ymd', time() + ( get_option( 'gmt_offset' ) * HOUR_IN_SECONDS ) );
 
 		for ( $i = 0; $i < 5; $i++ ) {
-			$number = self::NUMBER_PREFIX . '-' . $day . '-' . strtoupper( substr( md5( wp_rand() . microtime() . wp_uniqid() ), 0, 5 ) );
+			// uniqid() is a PHP core function. WordPress has no wp_uniqid().
+			// Combined with wp_rand(), microseconds and the database uniqueness
+			// check below, this provides a non-sequential public booking suffix.
+			$entropy = wp_rand() . '|' . microtime( true ) . '|' . uniqid( '', true );
+			$number  = self::NUMBER_PREFIX . '-' . $day . '-' . strtoupper( substr( md5( $entropy ), 0, 5 ) );
 			$exists = $global->get_var( $global->prepare( 'SELECT id FROM ' . self::tbl() . ' WHERE booking_number = %s LIMIT 1', $number ) );
 			if ( ! $exists ) {
 				return $number;
@@ -160,8 +164,31 @@ final class TG_Bookings {
 		$tour_id  = $quote['tour_id'];
 		$date     = $quote['date'];
 		$guests   = $quote['adults'] + $quote['children'] + $quote['infants'];
+		$user_id  = isset( $data['user_id'] ) ? absint( $data['user_id'] ) : 0;
+		$source   = isset( $data['source'] ) ? sanitize_key( $data['source'] ) : 'frontend';
 		$customer = self::sanitize_customer( isset( $data['customer'] ) ? (array) $data['customer'] : array() );
 
+		if ( in_array( $source, array( 'frontend', 'rest' ), true ) && ! $user_id ) {
+			return new WP_Error( 'tg_account_required', __( 'Log in or create an account before confirming your booking.', 'guidegrid-travel' ) );
+		}
+		if ( $user_id ) {
+			$account = get_user_by( 'id', $user_id );
+			if ( ! $account ) {
+				return new WP_Error( 'tg_account_invalid', __( 'Your customer account could not be verified. Please log in again.', 'guidegrid-travel' ) );
+			}
+			// Keep account ownership and booking lookup tied to the authenticated email.
+			$customer['email'] = $account->user_email;
+			if ( '' === $customer['first_name'] ) {
+				$customer['first_name'] = $account->first_name ? $account->first_name : $account->display_name;
+			}
+			if ( '' === $customer['last_name'] ) {
+				$customer['last_name'] = $account->last_name;
+			}
+		}
+
+		if ( '' === $customer['first_name'] ) {
+			return new WP_Error( 'tg_customer_name', __( 'Please provide your first name.', 'guidegrid-travel' ) );
+		}
 		if ( '' === $customer['email'] ) {
 			return new WP_Error( 'tg_customer_email', __( 'Please provide a valid email address.', 'guidegrid-travel' ) );
 		}
@@ -173,12 +200,17 @@ final class TG_Bookings {
 		}
 
 		$payment_method = isset( $data['payment_method'] ) ? sanitize_key( $data['payment_method'] ) : 'bank';
-		$online         = array_key_exists( $payment_method, TG_Payments::adapters() );
+		if ( ! TG_Payments::method_exists( $payment_method ) ) {
+			return new WP_Error( 'tg_payment_method', __( 'Choose an available payment method.', 'guidegrid-travel' ) );
+		}
+		$online        = array_key_exists( $payment_method, TG_Payments::adapters() );
+		$deferred      = ! $online && TG_Payments::is_deferred_manual( $payment_method );
+		$reserve_mode  = ( $admin_paid || $deferred ) ? 'confirmed' : 'hold';
 
 		// ---- Transaction: reserve capacity then write booking. ----
 		$global->query( 'START TRANSACTION' );
 
-		$reserved = TG_Availability::reserve( $tour_id, $date, $guests, $admin_paid ? 'confirmed' : 'hold' );
+		$reserved = TG_Availability::reserve( $tour_id, $date, $guests, $reserve_mode, false );
 		if ( is_wp_error( $reserved ) ) {
 			$global->query( 'ROLLBACK' );
 			return $reserved;
@@ -186,7 +218,6 @@ final class TG_Bookings {
 
 		$now         = current_time( 'mysql', true );
 		$number      = self::next_number();
-		$user_id     = isset( $data['user_id'] ) ? absint( $data['user_id'] ) : 0;
 		$customer_id = self::upsert_customer( $customer, $user_id, (float) $quote['total'] );
 
 		$end_date = '';
@@ -198,9 +229,12 @@ final class TG_Bookings {
 			}
 		}
 
-		$pending  = ( ! $admin_paid );
-		$now_ts   = time();
-		$hold_exp = $pending ? gmdate( 'Y-m-d H:i:s', $now_ts + ( (int) $settings['hold_minutes'] * MINUTE_IN_SECONDS ) ) : null;
+		$uses_short_hold = ( ! $admin_paid && ! $deferred );
+		$hold_minutes    = TG_Payments::hold_minutes_for_method( $payment_method );
+		$now_ts          = time();
+		$hold_exp        = $uses_short_hold ? gmdate( 'Y-m-d H:i:s', $now_ts + ( $hold_minutes * MINUTE_IN_SECONDS ) ) : null;
+		$payment_status  = $admin_paid ? 'paid' : ( $deferred ? 'unpaid' : 'pending' );
+		$booking_status  = ( $admin_paid || $deferred ) ? 'confirmed' : 'awaiting_payment';
 
 		$inserted = $global->insert(
 			self::tbl(),
@@ -226,18 +260,18 @@ final class TG_Bookings {
 				'currency'        => $quote['currency'],
 				'price_snapshot'  => wp_json_encode( $quote['price_snapshot'] ),
 				'addons'          => wp_json_encode( $quote['addons'] ),
-				'payment_status'  => $admin_paid ? 'paid' : ( $online ? 'pending' : 'pending' ),
-				'booking_status'  => $admin_paid ? 'confirmed' : 'awaiting_payment',
+				'payment_status'  => $payment_status,
+				'booking_status'  => $booking_status,
 				'hold_expires_at' => $hold_exp,
 				'customer_data'   => wp_json_encode( $customer ),
 				'created_at'      => $now,
 				'updated_at'      => $now,
 			),
-			array( '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%f', '%f', '%f', '%f', '%f', '%s', '%f', '%f', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%f', '%f', '%f', '%f', '%f', '%s', '%f', '%f', '%f', '%f', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 
 		if ( ! $inserted ) {
-			TG_Availability::release( $tour_id, $date, $guests, $admin_paid ? 'confirmed' : 'hold' );
+			TG_Availability::release( $tour_id, $date, $guests, $reserve_mode );
 			$global->query( 'ROLLBACK' );
 			return new WP_Error( 'tg_booking_insert', __( 'Your booking could not be saved. Please try again.', 'guidegrid-travel' ) );
 		}
@@ -290,7 +324,7 @@ final class TG_Bookings {
 					'method'         => $payment_method,
 					'amount'         => $quote['total'],
 					'currency'       => $quote['currency'],
-					'status'         => 'pending',
+					'status'         => $payment_status,
 				)
 			);
 		}
@@ -299,7 +333,7 @@ final class TG_Bookings {
 
 		$booking = self::get( $booking_id );
 		if ( ! $booking ) {
-			TG_Availability::release( $tour_id, $date, $guests, $admin_paid ? 'confirmed' : 'hold' );
+			TG_Availability::release( $tour_id, $date, $guests, $reserve_mode );
 			return new WP_Error( 'tg_booking_missing', __( 'Booking could not be created.', 'guidegrid-travel' ) );
 		}
 
