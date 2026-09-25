@@ -72,7 +72,7 @@ $cta_url   = $settings['header_cta_url'] ? $settings['header_cta_url'] : ( get_p
 				<?php else : ?>
 					<span class="tg-header-auth">
 						<a class="tg-btn tg-btn--ghost tg-btn--sm" href="<?php echo esc_url( tg_auth_url( '', 'login' ) ); ?>"><?php esc_html_e( 'Log In', 'guidegrid-travel' ); ?></a>
-						<a class="tg-btn tg-btn--secondary tg-btn--sm tg-header-signup" href="<?php echo esc_url( tg_auth_url( '', 'register' ) ); ?>"><?php esc_html_e( 'Create Account', 'guidegrid-travel' ); ?></a>
+						<a style="display:none;" class="tg-btn tg-btn--secondary tg-btn--sm tg-header-signup" href="<?php echo esc_url( tg_auth_url( '', 'register' ) ); ?>"><?php esc_html_e( 'Create Account', 'guidegrid-travel' ); ?></a>
 					</span>
 				<?php endif; ?>
 			<?php endif; ?>

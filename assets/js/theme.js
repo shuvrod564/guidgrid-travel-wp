@@ -328,9 +328,18 @@
 				e.preventDefault();
 				var action = form.getAttribute('data-action');
 				var btn = form.querySelector('button[type="submit"]');
-				var data = new URLSearchParams(new FormData(form));
-				data.append('action', action);
-				data.append('tg_nonce', d.nonce || '');
+				// var data = new URLSearchParams(new FormData(form));
+				// data.append('action', action);
+				// data.append('tg_nonce', d.nonce || '');
+				var formData = new FormData(form);
+				var data = new URLSearchParams();
+
+				formData.forEach(function (value, key) {
+					data.append(key, value);
+				});
+
+				data.set('action', action || '');
+				data.set('tg_nonce', d.nonce || '');
 
 				if (btn) {
 					btn.setAttribute('aria-busy', 'true');
@@ -340,7 +349,9 @@
 				fetch(d.ajaxUrl, {
 					method: 'POST',
 					credentials: 'same-origin',
-					headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+					},
 					body: data.toString()
 				})
 					.then(function (r) {

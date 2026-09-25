@@ -131,8 +131,13 @@
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 24px;
 }
+.tg-card-grid-sm {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
 @media (max-width: 991px) { .tg-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 575px) { .tg-card-grid { grid-template-columns: 1fr; } }
+@media (max-width: 575px) { .tg-card-grid, .tg-card-grid-sm { grid-template-columns: 1fr; } }
 
 /* ==========================================================================
    3. Destination card
@@ -269,9 +274,9 @@
 	top: 12px;
 	left: 12px;
 	background: var(--tg-secondary);
-	color: #4A2C0B;
+	color: var(--tg-white);
 	font-weight: 800;
-	font-size: 1.05rem;
+	font-size: 0.75rem;
 	padding: 6px 12px;
 	border-radius: 10px;
 }
@@ -988,72 +993,10 @@
 /* ==========================================================================
    16. Account
    ========================================================================== */
-.tg-account-layout {
-	display: grid;
-	grid-template-columns: 260px 1fr;
-	gap: 32px;
-	align-items: start;
-	padding-bottom: 72px;
-}
-@media (max-width: 991px) { .tg-account-layout { grid-template-columns: 1fr; } }
-.tg-account-nav {
-	background: var(--tg-white);
-	border: 1px solid var(--tg-border);
-	border-radius: var(--tg-radius);
-	padding: 14px;
-	position: sticky;
-	top: calc(var(--tg-header-h) + 16px);
-}
-@media (max-width: 991px) { .tg-account-nav { position: static; } }
-.tg-account-nav ul { list-style: none; margin: 0; padding: 0; }
-.tg-account-nav a {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 12px 14px;
-	border-radius: 10px;
-	color: var(--tg-heading);
-	font-weight: 600;
-	font-size: 0.95rem;
-}
-.tg-account-nav a:hover { background: var(--tg-surface); }
-.tg-account-nav a.is-active { background: var(--tg-primary-soft); color: var(--tg-primary-dark); }
-.tg-account-nav svg { width: 18px; height: 18px; fill: currentColor; }
+.tg-account-layout{display:grid;grid-template-columns:260px 1fr;gap:32px;align-items:start;padding-bottom:72px}.tg-account-nav{background:var(--tg-white);border:1px solid var(--tg-border);border-radius:var(--tg-radius);padding:14px;position:sticky;top:calc(var(--tg-header-h) + 16px)}.tg-account-nav ul{list-style:none;margin:0;padding:0}.tg-account-nav a{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;color:var(--tg-heading);font-weight:600;font-size:.95rem}.tg-account-nav a:hover{background:var(--tg-surface)}.tg-account-nav a.is-active{background:var(--tg-primary-soft);color:var(--tg-primary-dark)}.tg-account-nav svg{width:18px;height:18px;fill:currentColor}.tg-account-panel{background:var(--tg-white);border:1px solid var(--tg-border);border-radius:var(--tg-radius);padding:28px}.tg-account-panel h2{font-size:1.3rem;margin-bottom:20px}.tg-stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}@media (max-width:991px){.tg-account-layout{grid-template-columns:1fr}.tg-account-nav{position:static}.tg-stat-cards{grid-template-columns:repeat(2,1fr);gap:8px}.tg-account-panel{padding:18px}.tg-stat-card{padding:10px}}.tg-stat-card{background:var(--tg-surface);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px;border:1px solid rgba(0,0,0,.05);box-shadow:0 4px 12px rgba(0,0,0,.03);transition:transform .2s,box-shadow .2s}.tg-stat-card:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.06)}.tg-stat-card .tg-stat-content{display:flex;flex-direction:column}.tg-stat-card .tg-stat-num{font-size:1.26rem;font-weight:800;color:var(--tg-heading);line-height:1.1}.tg-stat-card .tg-stat-label{font-size:.82rem;color:var(--tg-muted);margin-top:2px}.tg-stat-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}.tg-stat-icon svg{width:22px;height:22px}.tg-stat-icon-total{background-color:rgba(59,130,246,.1);color:#3b82f6}.tg-stat-icon-upcoming{background-color:rgba(245,158,11,.1);color:#f59e0b}.tg-stat-icon-completed{background-color:rgba(16,185,129,.1);color:#10b981}.tg-stat-icon-wishlist{background-color:rgba(239,68,68,.1);color:#ef4444}
 
-.tg-account-panel {
-	background: var(--tg-white);
-	border: 1px solid var(--tg-border);
-	border-radius: var(--tg-radius);
-	padding: 28px;
-}
-.tg-account-panel h2 { font-size: 1.3rem; margin-bottom: 20px; }
 
-.tg-stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
-@media (max-width: 991px) { .tg-stat-cards { grid-template-columns: repeat(2, 1fr); } }
-.tg-stat-card {
-	background: var(--tg-surface);
-	border-radius: 12px;
-	padding: 18px;
-}
-.tg-stat-card .tg-stat-num { font-size: 1.6rem; font-weight: 800; color: var(--tg-heading); line-height: 1.2; }
-.tg-stat-card .tg-stat-label { font-size: 0.82rem; color: var(--tg-muted); }
-
-.tg-booking-table-wrap { overflow-x: auto; }
-.tg-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-.tg-table th {
-	text-align: start;
-	font-size: 0.78rem;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	color: var(--tg-muted);
-	padding: 10px 12px;
-	border-bottom: 2px solid var(--tg-border);
-	white-space: nowrap;
-}
-.tg-table td { padding: 14px 12px; border-bottom: 1px solid var(--tg-border); vertical-align: middle; }
-.tg-table .tg-cell-title a { color: var(--tg-heading); font-weight: 600; }
-.tg-table .tg-cell-title a:hover { color: var(--tg-primary); }
-.tg-table .tg-cell-num { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.85rem; }
+.tg-booking-num,.tg-booking-title a:hover{color:var(--tg-primary)}.tg-booking-list{display:flex;flex-direction:column;gap:16px}.tg-booking-card{background:var(--tg-surface);border:1px solid var(--tg-border);border-radius:12px;padding:20px;transition:transform .2s,box-shadow .2s}.tg-booking-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.05)}.tg-booking-card-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--tg-border);margin-bottom:12px}.tg-booking-card-meta{display:flex;align-items:center;gap:12px}.tg-booking-num{font-family:SFMono-Regular,Consolas,monospace;font-size:.85rem;font-weight:600;background:rgba(var(--tg-primary-rgb,59,130,246),.08);padding:4px 8px;border-radius:6px}.tg-booking-date{font-size:.82rem;color:var(--tg-muted)}.tg-booking-card-price{font-size:1.1rem;font-weight:700;color:var(--tg-heading)}.tg-booking-card-body{margin-bottom:16px}.tg-booking-title{margin:0;font-size:1.05rem;font-weight:600;line-height:1.4}.tg-booking-title a{color:var(--tg-heading);text-decoration:none;transition:color .2s}.tg-booking-card-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.tg-booking-badges{display:flex;align-items:center;gap:8px;flex-wrap:wrap}@media (max-width:576px){.tg-booking-card-header{flex-direction:column;align-items:flex-start;gap:8px}.tg-booking-card-footer{flex-direction:column;align-items:stretch}.tg-booking-action{width:100%}.tg-booking-action .tg-btn{width:100%;text-align:center}.tg-booking-card-meta{flex-direction:column;align-items:flex-start;gap:4px}}
 
 /* ==========================================================================
    17. Contact

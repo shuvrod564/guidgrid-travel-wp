@@ -42,6 +42,7 @@ require TG_DIR . '/inc/ajax.php';
 require TG_DIR . '/inc/rest.php';
 require TG_DIR . '/inc/cron.php';
 require TG_DIR . '/inc/activation.php';
+require TG_DIR . '/inc/recommended-plugins.php';
 
 if ( is_admin() ) {
 	require TG_DIR . '/inc/admin/admin-menu.php';
@@ -55,3 +56,18 @@ if ( is_admin() ) {
 	require TG_DIR . '/inc/admin/dashboard-widget.php';
 	require TG_DIR . '/inc/admin/demo-importer.php';
 }
+
+
+// add_action(
+// 	'wp_mail_failed',
+// 	function ( $error ) {
+// 		if ( is_wp_error( $error ) ) {
+// 			error_log(
+// 				'GuideGrid wp_mail failure: ' .
+// 				$error->get_error_message() .
+// 				' | ' .
+// 				wp_json_encode( $error->get_error_data() )
+// 			);
+// 		}
+// 	}
+// );

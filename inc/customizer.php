@@ -151,6 +151,29 @@ if ( ! function_exists( 'tg_customize_register' ) ) {
 				)
 			);
 		}
+
+		$wp_customize->add_setting(
+			'tg_footer_logo',
+			array(
+				'default'           => 0,
+				'type'              => 'theme_mod',
+				'capability'        => 'edit_theme_options',
+				'sanitize_callback' => 'absint',
+			)
+		);
+
+		$wp_customize->add_control(
+			new WP_Customize_Media_Control(
+				$wp_customize,
+				'tg_footer_logo',
+				array(
+					'label'       => __( 'Footer Logo', 'guidegrid-travel' ),
+					'description' => __( 'Upload a separate logo for the dark footer. A transparent or light-colored logo is recommended.', 'guidegrid-travel' ),
+					'section'     => 'tg_branding',
+					'mime_type'   => 'image',
+				)
+			)
+		);
 	}
 }
 add_action( 'customize_register', 'tg_customize_register' );

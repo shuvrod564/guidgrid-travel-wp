@@ -131,6 +131,16 @@ if ( ! function_exists( 'tg_rest_routes' ) ) {
 
 		register_rest_route(
 			'tg/v1',
+			'/payments/paypal/webhook',
+			array(
+				'methods'             => 'POST',
+				'callback'            => 'tg_rest_paypal_webhook',
+				'permission_callback' => '__return_true', // PayPal verifies its transmission signature server-side.
+			)
+		);
+
+		register_rest_route(
+			'tg/v1',
 			'/payments/paypal/return',
 			array(
 				'methods'             => 'GET',
@@ -435,6 +445,25 @@ function tg_rest_stripe_webhook( WP_REST_Request $request ) {
 		(string) $request->get_body(),
 		(string) $request->get_header( 'stripe-signature' )
 	);
+	return new WP_REST_Response( $result, $result['success'] ? 200 : 400 );
+}
+
+/**
+ * PayPal webhook endpoint. PayPal's verification API validates the event
+ * headers and configured Webhook ID before an order can be captured.
+ *
+ * @param WP_REST_Request $request Request.
+ * @return WP_REST_Response
+ */
+function tg_rest_paypal_webhook( WP_REST_Request $request ) {
+	$headers = array(
+		'transmission_id'   => sanitize_text_field( (string) $request->get_header( 'paypal-transmission-id' ) ),
+		'transmission_time' => sanitize_text_field( (string) $request->get_header( 'paypal-transmission-time' ) ),
+		'cert_url'          => esc_url_raw( (string) $request->get_header( 'paypal-cert-url' ) ),
+		'auth_algo'         => sanitize_text_field( (string) $request->get_header( 'paypal-auth-algo' ) ),
+		'transmission_sig'  => sanitize_text_field( (string) $request->get_header( 'paypal-transmission-sig' ) ),
+	);
+	$result = TG_Payments::handle_paypal_webhook( (string) $request->get_body(), $headers );
 	return new WP_REST_Response( $result, $result['success'] ? 200 : 400 );
 }
 

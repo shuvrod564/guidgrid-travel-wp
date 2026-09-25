@@ -31,18 +31,24 @@ final class TG_Emails {
 			return false;
 		}
 
-		$settings = tg_settings();
-		$subject  = apply_filters( 'tg_email_subject', $subject, $key );
-		$content  = self::wrap( $key, $inner_html );
-		$content  = apply_filters( 'tg_email_content', $content, $key, $inner_html );
+		$settings   = tg_settings();
+		$subject    = apply_filters( 'tg_email_subject', $subject, $key );
+		$content    = self::wrap( $key, $inner_html );
+		$content    = apply_filters( 'tg_email_content', $content, $key, $inner_html );
+		$from_name  = sanitize_text_field( (string) ( $settings['email_from_name'] ?? '' ) );
+		$from_email = sanitize_email( (string) ( $settings['email_from_email'] ?? '' ) );
+		if ( '' === $from_name ) {
+			$from_name = sanitize_text_field( get_bloginfo( 'name' ) );
+		}
+		if ( ! is_email( $from_email ) ) {
+			$from_email = sanitize_email( (string) get_option( 'admin_email' ) );
+		}
 
-		$headers  = array_merge(
-			array(
-				'From: ' . $settings['email_from_name'] . ' <' . $settings['email_from_email'] . '>',
-				'Content-Type: text/html; charset=UTF-8',
-			),
-			$headers
-		);
+		$default_headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		if ( is_email( $from_email ) ) {
+			$default_headers[] = 'From: ' . $from_name . ' <' . $from_email . '>';
+		}
+		$headers = array_merge( $default_headers, $headers );
 
 		do_action( 'tg_before_email', $key, $to, $subject, $content );
 
@@ -201,6 +207,34 @@ final class TG_Emails {
 		);
 
 		return self::send( 'payment_received', $to, $subject, $inner );
+	}
+
+	/**
+	 * Payment received notification for the site administrator.
+	 *
+	 * @param object $booking Booking row.
+	 * @return bool
+	 */
+	public static function payment_received_admin( object $booking ): bool {
+		$settings = tg_settings();
+		$to       = ! empty( $settings['admin_email'] ) ? $settings['admin_email'] : get_option( 'admin_email' );
+		if ( ! $to || ! is_email( $to ) ) {
+			return false;
+		}
+		$payment = TG_Payments::latest_for_booking( (int) $booking->id );
+		$method  = $payment ? TG_Payments::method_label( (string) $payment->payment_method ) : '';
+		$ref     = $payment ? (string) $payment->transaction_id : '';
+		$inner   = '<h1 style="color:#172026;font-size:20px;margin:0 0 8px;">' . esc_html__( 'Payment received', 'guidegrid-travel' ) . '</h1>'
+			. self::booking_block( $booking )
+			. ( $method ? '<p><strong>' . esc_html__( 'Method:', 'guidegrid-travel' ) . '</strong> ' . esc_html( $method ) . '</p>' : '' )
+			. ( $ref ? '<p><strong>' . esc_html__( 'Transaction reference:', 'guidegrid-travel' ) . '</strong> ' . esc_html( $ref ) . '</p>' : '' )
+			. '<p><a href="' . esc_url( admin_url( 'admin.php?page=tg-booking-detail&booking=' . (int) $booking->id ) ) . '" style="color:#0B6E69;">' . esc_html__( 'View payment and booking', 'guidegrid-travel' ) . '</a></p>';
+		$subject = sprintf(
+			/* translators: %s: booking number */
+			__( 'Payment received – %s', 'guidegrid-travel' ),
+			$booking->booking_number
+		);
+		return self::send( 'admin_payment_received', $to, $subject, $inner );
 	}
 
 	/**

@@ -1,6 +1,6 @@
 /*
 Theme Name: GuideGrid Travel
-Theme URI: https://example.com/guidegrid-travel
+Theme URI: https://travel.html-5.me
 Author: Shuvrodeb
 Author URI: https://suvop.netlify.app
 Description: A complete tour package management and booking theme for travel agencies, tour operators and destination websites. Includes tours, destinations, travel guides, availability, seasonal pricing, coupons, add-ons, bookings, payments-ready workflow, customer accounts, reviews, wishlist and a full admin booking console.
@@ -17,34 +17,66 @@ Tags: travel, booking, tours, e-commerce, custom-logo, custom-menu, featured-ima
 /* ==========================================================================
    1. Design tokens
    ========================================================================== */
-:root {
-	--tg-primary: #0B6E69;
-	--tg-primary-dark: #07514E;
-	--tg-primary-soft: rgba(11, 110, 105, 0.08);
-	--tg-secondary: #F4A261;
-	--tg-secondary-dark: #E08B3E;
-	--tg-accent: #2A9D8F;
-	--tg-heading: #172026;
-	--tg-text: #5B6570;
-	--tg-muted: #87919B;
-	--tg-border: #E6E9EC;
-	--tg-surface: #F7F9FA;
-	--tg-white: #FFFFFF;
-	--tg-success: #2E9B5B;
-	--tg-success-soft: #E8F6EE;
-	--tg-warning: #E6A23C;
-	--tg-warning-soft: #FDF3E3;
-	--tg-danger: #D64545;
-	--tg-danger-soft: #FBEAEA;
-	--tg-info-soft: #EAF3FB;
-	--tg-radius: 14px;
-	--tg-radius-sm: 8px;
-	--tg-shadow: 0 6px 24px rgba(23, 32, 38, 0.08);
-	--tg-shadow-sm: 0 2px 10px rgba(23, 32, 38, 0.06);
-	--tg-font-heading: "Plus Jakarta Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-	--tg-font-body: "Plus Jakarta Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-	--tg-container: 1200px;
-	--tg-header-h: 76px;
+:root { 
+    --tg-primary: #0B4F71;
+    --tg-primary-dark: #073B55;
+    --tg-primary-soft: rgba(11, 79, 113, 0.08); 
+    --tg-secondary: #12B89F;
+    --tg-secondary-dark: #0A9581;
+    --tg-secondary-soft: rgba(18, 184, 159, 0.10); 
+    --tg-accent: #18C3A7;
+    --tg-accent-dark: #0FA78F;
+    --tg-accent-soft: rgba(24, 195, 167, 0.10); 
+    --tg-gold: #FFB51B;
+    --tg-gold-dark: #E89B00;
+    --tg-gold-soft: rgba(255, 181, 27, 0.12); 
+    --tg-heading: #123B59;
+    --tg-text: #526574;
+    --tg-muted: #84939E;
+    --tg-light-text: #A4B0B8; 
+    --tg-white: #FFFFFF;
+    --tg-background: #FFFFFF;
+    --tg-surface: #F5FAF9;
+    --tg-surface-alt: #EFF8F6;
+    --tg-surface-dark: #123B59; 
+    --tg-border: #DCE8E7;
+    --tg-border-light: #EAF1F0;
+    --tg-border-dark: #BFD4D1; 
+    --tg-success: #2E9B5B;
+    --tg-success-soft: #E8F6EE; 
+    --tg-warning: #E6A23C;
+    --tg-warning-soft: #FDF3E3; 
+    --tg-danger: #D64545;
+    --tg-danger-soft: #FBEAEA; 
+    --tg-info: #2B7DB5;
+    --tg-info-soft: #EAF3FB; 
+    --tg-rating: #FFB51B;
+    --tg-rating-soft: #FFF6DC; 
+    --tg-radius: 14px;
+    --tg-radius-sm: 8px;
+    --tg-radius-lg: 20px;
+    --tg-radius-pill: 999px; 
+    --tg-shadow: 0 6px 24px rgba(18, 59, 89, 0.08); 
+    --tg-shadow-sm: 0 2px 10px rgba(18, 59, 89, 0.06); 
+    --tg-shadow-lg: 0 16px 45px rgba(18, 59, 89, 0.12); 
+    --tg-font-heading:
+        "Plus Jakarta Sans",
+        "Segoe UI",
+        -apple-system,
+        BlinkMacSystemFont,
+        Roboto,
+        Arial,
+        sans-serif; 
+    --tg-font-body:
+        "Plus Jakarta Sans",
+        "Segoe UI",
+        -apple-system,
+        BlinkMacSystemFont,
+        Roboto,
+        Arial,
+        sans-serif; 
+    --tg-container: 1200px;
+    --tg-header-h: 76px;
 }
 
 /* Customizer color overrides are injected inline in <head>. */
@@ -394,8 +426,8 @@ label.tg-label,
 	line-height: 1.1;
 }
 .tg-logo .tg-logo-text span { color: var(--tg-secondary); }
-.custom-logo { max-height: 60px;width: auto; }
-@media (max-width:640px) { .custom-logo{max-height: 48px;} }
+.custom-logo { max-height: 48px;width: auto; }
+@media (max-width:640px) { .custom-logo{max-height: 34px;} }
 
 .tg-main-nav { margin-left: auto; }
 .tg-main-nav > ul {
@@ -407,11 +439,12 @@ label.tg-label,
 }
 .tg-main-nav a {
 	display: block;
-	padding: 10px 14px;
+	padding: 8px 12px 10px;
 	border-radius: 8px;
 	color: var(--tg-heading);
-	font-weight: 600;
-	font-size: 0.95rem;
+	font-weight: 500;
+	font-size: 0.875rem;
+	line-height: 1.3;
 }
 .tg-main-nav a:hover,
 .tg-main-nav .current-menu-item > a,
@@ -471,7 +504,7 @@ label.tg-label,
 	padding: 24px 0;
 }
 .tg-search-panel.is-open { display: block; }
-.tg-search-panel form { display: flex; gap: 10px; }
+.tg-search-panel form { display: flex; gap: 10px;width: 100%; }
 .tg-search-panel .tg-input { flex: 1; }
 
 /* Mobile nav */
@@ -688,6 +721,13 @@ label.tg-label,
 	margin: 0;
 	padding: 0;
 }
+.tg-footer-logo img {
+	display: block;
+	width: auto;
+	max-width: 220px;
+	max-height: 60px;
+	object-fit: contain;
+}
 
 /* ==========================================================================
    11. Pagination
@@ -868,6 +908,9 @@ label.tg-label,
 }
 .tg-comments .form-submit { margin-top: 6px; }
 .tg-comments .comment-reply-link { font-size: 0.85rem; }
+.tg-footer-logo .custom-logo {
+	max-height: 70px;filter: brightness(0) invert(1);
+}
 
 /* ==========================================================================
    16. Responsive

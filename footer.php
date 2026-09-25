@@ -8,6 +8,7 @@
 defined( 'ABSPATH' ) || exit;
 
 $settings = tg_settings();
+$footer_logo_id = absint( get_theme_mod( 'tg_footer_logo', 0 ) );
 ?>
 </main><!-- #tg-main -->
 
@@ -16,12 +17,28 @@ $settings = tg_settings();
 		<div class="tg-footer-grid">
 			<div class="tg-footer-about">
 				<span class="tg-footer-logo">
-					<?php if ( has_custom_logo() ) : ?>
+					<?php if ( $footer_logo_id ) : ?>
+						<a href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>">
+							<?php
+							echo wp_get_attachment_image(
+								$footer_logo_id,
+								'full',
+								false,
+								array(
+									'class'   => 'tg-footer-logo-image',
+									'alt'     => get_bloginfo( 'name' ),
+									'loading' => 'lazy',
+								)
+							);
+							?>
+						</a>
+					<?php elseif ( has_custom_logo() ) : ?>
 						<?php the_custom_logo(); ?>
 					<?php else : ?>
 						Guide<span>Grid</span>
 					<?php endif; ?>
 				</span>
+				
 				<p><?php echo esc_html( $settings['footer_about'] ? $settings['footer_about'] : get_bloginfo( 'description' ) ); ?></p>
 				<div class="tg-footer-social">
 					<?php if ( $settings['social_facebook'] ) : ?>

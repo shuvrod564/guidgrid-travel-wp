@@ -444,6 +444,45 @@ final class TG_PayPal_Checkout_Adapter implements TG_Payment_Adapter {
 			'order_id'       => $order_id,
 		);
 	}
+
+	/**
+	 * Ask PayPal to verify the asymmetric signature on a webhook event.
+	 *
+	 * @param array $event   Parsed webhook event.
+	 * @param array $headers Required PayPal transmission headers.
+	 * @return true|WP_Error
+	 */
+	public function verify_webhook( array $event, array $headers ) {
+		$webhook_id = (string) ( tg_settings()['paypal_webhook_id'] ?? '' );
+		if ( '' === $webhook_id ) {
+			return new WP_Error( 'tg_paypal_webhook_id', __( 'PayPal Webhook ID is not configured.', 'guidegrid-travel' ) );
+		}
+		$required = array( 'transmission_id', 'transmission_time', 'cert_url', 'auth_algo', 'transmission_sig' );
+		foreach ( $required as $key ) {
+			if ( empty( $headers[ $key ] ) ) {
+				return new WP_Error( 'tg_paypal_webhook_header', __( 'A required PayPal webhook header is missing.', 'guidegrid-travel' ) );
+			}
+		}
+		$verification = $this->request(
+			'POST',
+			'v1/notifications/verify-webhook-signature',
+			array(
+				'transmission_id'   => (string) $headers['transmission_id'],
+				'transmission_time' => (string) $headers['transmission_time'],
+				'cert_url'          => esc_url_raw( (string) $headers['cert_url'] ),
+				'auth_algo'         => (string) $headers['auth_algo'],
+				'transmission_sig'  => (string) $headers['transmission_sig'],
+				'webhook_id'        => $webhook_id,
+				'webhook_event'     => $event,
+			)
+		);
+		if ( is_wp_error( $verification ) ) {
+			return $verification;
+		}
+		return 'SUCCESS' === ( $verification['verification_status'] ?? '' )
+			? true
+			: new WP_Error( 'tg_paypal_webhook_signature', __( 'PayPal webhook signature verification failed.', 'guidegrid-travel' ) );
+	}
 }
 
 /**
@@ -594,7 +633,7 @@ final class TG_Payments {
 		if ( ! $row ) {
 			return new WP_Error( 'tg_payment_record_missing', __( 'The pending payment record could not be found.', 'guidegrid-travel' ) );
 		}
-		if ( 'stripe' === $method && ! empty( $row->transaction_id ) && ! empty( $row->transaction_id ) && method_exists( $adapters[ $method ], 'expire_session' ) ) {
+		if ( 'stripe' === $method && ! empty( $row->transaction_id ) && method_exists( $adapters[ $method ], 'expire_session' ) ) {
 			$adapters[ $method ]->expire_session( (string) $row->transaction_id );
 		}
 
@@ -653,6 +692,15 @@ final class TG_Payments {
 		if ( ! $booking ) {
 			return new WP_Error( 'tg_booking_missing', __( 'Booking not found.', 'guidegrid-travel' ) );
 		}
+		$gateway = sanitize_key( $gateway );
+		$txn_id  = sanitize_text_field( $txn_id );
+		$method  = sanitize_key( $method ? $method : $gateway );
+		if ( '' === $gateway || '' === $txn_id ) {
+			return new WP_Error( 'tg_payment_reference_missing', __( 'A payment gateway and transaction reference are required.', 'guidegrid-travel' ) );
+		}
+		if ( abs( $amount - (float) $booking->total ) > 0.01 ) {
+			return new WP_Error( 'tg_payment_amount_mismatch', __( 'The payment amount does not match this booking.', 'guidegrid-travel' ) );
+		}
 		$global   = $GLOBALS['wpdb'];
 		$existing = $txn_id ? $global->get_row(
 			$global->prepare( 'SELECT id, booking_id FROM ' . self::tbl() . ' WHERE transaction_id = %s AND status = %s LIMIT 1', $txn_id, 'paid' )
@@ -666,11 +714,11 @@ final class TG_Payments {
 			return true;
 		}
 
-		self::record(
+		$payment_id = self::record(
 			$booking_id,
 			array(
 				'gateway'        => $gateway,
-				'method'         => $method ? $method : $gateway,
+				'method'         => $method,
 				'transaction_id' => $txn_id,
 				'amount'         => $amount,
 				'currency'       => $booking->currency,
@@ -678,8 +726,21 @@ final class TG_Payments {
 				'paid_at'        => current_time( 'mysql', true ),
 			)
 		);
+		if ( ! $payment_id ) {
+			return new WP_Error( 'tg_payment_record_failed', __( 'The verified payment could not be recorded.', 'guidegrid-travel' ) );
+		}
 		TG_Bookings::set_payment_status( $booking_id, 'paid' );
 		$global->update( TG_Database::table( 'bookings' ), array( 'hold_expires_at' => null ), array( 'id' => $booking_id ) );
+		if ( ! empty( $booking->customer_id ) ) {
+			$global->query(
+				$global->prepare(
+					'UPDATE ' . TG_Database::table( 'customers' ) . ' SET total_spent = total_spent + %f, updated_at = %s WHERE id = %d',
+					(float) $booking->total,
+					current_time( 'mysql', true ),
+					(int) $booking->customer_id
+				) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+		}
 
 		$guests = (int) $booking->adult_count + (int) $booking->child_count + (int) $booking->infant_count;
 		if ( $guests > 0 && in_array( $booking->booking_status, array( 'pending', 'awaiting_payment' ), true ) ) {
@@ -687,7 +748,11 @@ final class TG_Payments {
 			TG_Bookings::update_status( $booking_id, 'confirmed', 'payment_received' );
 		}
 		do_action( 'tg_payment_completed', $booking_id, $gateway, $txn_id );
-		TG_Emails::payment_received( TG_Bookings::get( $booking_id ) );
+		$paid_booking = TG_Bookings::get( $booking_id );
+		if ( $paid_booking ) {
+			TG_Emails::payment_received( $paid_booking );
+			TG_Emails::payment_received_admin( $paid_booking );
+		}
 		return true;
 	}
 
@@ -786,10 +851,21 @@ final class TG_Payments {
 		if ( ! is_array( $session ) || 'paid' !== ( $session['payment_status'] ?? '' ) ) {
 			return array( 'success' => true, 'message' => 'Payment is not paid yet.' );
 		}
+		if ( isset( $session['mode'] ) && 'payment' !== (string) $session['mode'] ) {
+			return array( 'success' => false, 'message' => 'Stripe session mode is not supported.' );
+		}
+		$stripe_key = (string) ( tg_settings()['stripe_secret_key'] ?? '' );
+		if ( isset( $event['livemode'] ) && (bool) $event['livemode'] !== str_starts_with( $stripe_key, 'sk_live_' ) ) {
+			return array( 'success' => false, 'message' => 'Stripe event mode does not match the configured key.' );
+		}
 		$number  = sanitize_text_field( (string) ( $session['metadata']['booking_number'] ?? $session['client_reference_id'] ?? '' ) );
 		$booking = $number ? TG_Bookings::by_number( $number ) : null;
 		if ( ! $booking ) {
 			return array( 'success' => false, 'message' => 'Booking not found.' );
+		}
+		$event_id = sanitize_text_field( (string) ( $event['id'] ?? '' ) );
+		if ( $event_id && '1' === TG_Bookings::get_meta( (int) $booking->id, 'stripe_event_' . md5( $event_id ) ) ) {
+			return array( 'success' => true, 'message' => 'Stripe event already processed.' );
 		}
 		$session_id      = sanitize_text_field( (string) ( $session['id'] ?? '' ) );
 		$session_matches = false;
@@ -818,14 +894,94 @@ final class TG_Payments {
 		if ( is_wp_error( $settled ) ) {
 			return array( 'success' => false, 'message' => $settled->get_error_message() );
 		}
-		if ( ! empty( $event['id'] ) ) {
-			TG_Bookings::set_meta( (int) $booking->id, 'stripe_event_' . md5( (string) $event['id'] ), '1' );
+		if ( $event_id ) {
+			TG_Bookings::set_meta( (int) $booking->id, 'stripe_event_' . md5( $event_id ), '1' );
 		}
 		return array( 'success' => true, 'message' => 'Payment verified.' );
 	}
 
 	/**
-	 * Legacy signed custom-adapter webhook.
+	 * Verify and process PayPal order/capture webhook events.
+	 *
+	 * @param string $raw_body Raw JSON request body.
+	 * @param array  $headers  PayPal transmission headers.
+	 * @return array{success:bool,message:string}
+	 */
+	public static function handle_paypal_webhook( string $raw_body, array $headers ): array {
+		$event = json_decode( $raw_body, true );
+		if ( ! is_array( $event ) ) {
+			return array( 'success' => false, 'message' => 'Invalid PayPal webhook JSON.' );
+		}
+		$adapters = self::adapters();
+		if ( ! isset( $adapters['paypal'] ) || ! $adapters['paypal'] instanceof TG_PayPal_Checkout_Adapter ) {
+			return array( 'success' => false, 'message' => 'PayPal is not configured.' );
+		}
+		$signature = $adapters['paypal']->verify_webhook( $event, $headers );
+		if ( is_wp_error( $signature ) ) {
+			return array( 'success' => false, 'message' => $signature->get_error_message() );
+		}
+
+		$type = sanitize_text_field( (string) ( $event['event_type'] ?? '' ) );
+		if ( ! in_array( $type, array( 'CHECKOUT.ORDER.APPROVED', 'PAYMENT.CAPTURE.COMPLETED' ), true ) ) {
+			return array( 'success' => true, 'message' => 'PayPal event acknowledged.' );
+		}
+		$resource = isset( $event['resource'] ) && is_array( $event['resource'] ) ? $event['resource'] : array();
+		$order_id = 'CHECKOUT.ORDER.APPROVED' === $type
+			? sanitize_text_field( (string) ( $resource['id'] ?? '' ) )
+			: sanitize_text_field( (string) ( $resource['supplementary_data']['related_ids']['order_id'] ?? '' ) );
+		if ( '' === $order_id || ! preg_match( '/^[A-Z0-9-]{8,32}$/i', $order_id ) ) {
+			return array( 'success' => false, 'message' => 'PayPal order reference is missing.' );
+		}
+
+		$global  = $GLOBALS['wpdb'];
+		$payment = $global->get_row(
+			$global->prepare(
+				'SELECT booking_id FROM ' . self::tbl() . ' WHERE gateway = %s AND transaction_id = %s ORDER BY id DESC LIMIT 1',
+				'paypal',
+				$order_id
+			)
+		);
+		$booking = $payment ? TG_Bookings::get( (int) $payment->booking_id ) : null;
+		if ( ! $booking ) {
+			return array( 'success' => false, 'message' => 'PayPal order does not match a booking.' );
+		}
+
+		$event_id = sanitize_text_field( (string) ( $event['id'] ?? '' ) );
+		$meta_key = $event_id ? 'paypal_event_' . md5( $event_id ) : '';
+		if ( $meta_key && '1' === TG_Bookings::get_meta( (int) $booking->id, $meta_key ) ) {
+			return array( 'success' => true, 'message' => 'PayPal event already processed.' );
+		}
+		if ( 'paid' === (string) $booking->payment_status ) {
+			if ( $meta_key ) {
+				TG_Bookings::set_meta( (int) $booking->id, $meta_key, '1' );
+			}
+			return array( 'success' => true, 'message' => 'Payment is already verified.' );
+		}
+
+		$hold_expired = $booking->hold_expires_at && (string) $booking->hold_expires_at < current_time( 'mysql', true );
+		if ( $hold_expired || ! in_array( (string) $booking->booking_status, array( 'pending', 'awaiting_payment' ), true ) ) {
+			return array( 'success' => false, 'message' => 'The booking payment hold is no longer active.' );
+		}
+		$verified = $adapters['paypal']->verify_transaction( array( 'order_id' => $order_id ) );
+		if ( is_wp_error( $verified ) ) {
+			return array( 'success' => false, 'message' => $verified->get_error_message() );
+		}
+		$checked = self::validate_verified_payment( $booking, $verified );
+		if ( is_wp_error( $checked ) ) {
+			return array( 'success' => false, 'message' => $checked->get_error_message() );
+		}
+		$settled = self::mark_paid( (int) $booking->id, 'paypal', (string) $verified['transaction_id'], (float) $verified['amount'], 'paypal' );
+		if ( is_wp_error( $settled ) ) {
+			return array( 'success' => false, 'message' => $settled->get_error_message() );
+		}
+		if ( $meta_key ) {
+			TG_Bookings::set_meta( (int) $booking->id, $meta_key, '1' );
+		}
+		return array( 'success' => true, 'message' => 'PayPal payment verified.' );
+	}
+
+	/**
+	 * Signed custom-adapter webhook.
 	 *
 	 * @return array{success:bool,message:string}
 	 */
@@ -834,12 +990,20 @@ final class TG_Payments {
 		if ( '' === $secret ) {
 			return array( 'success' => false, 'message' => 'Webhook secret is not configured.' );
 		}
-		$signature = isset( $headers['tg-signature'] ) ? $headers['tg-signature'] : ( $headers['x-tg-signature'] ?? '' );
-		if ( ! hash_equals( hash_hmac( 'sha256', $raw_body, $secret ), (string) $signature ) ) {
+		$signature = trim( (string) ( isset( $headers['tg-signature'] ) && $headers['tg-signature'] ? $headers['tg-signature'] : ( $headers['x-tg-signature'] ?? '' ) ) );
+		if ( 0 === stripos( $signature, 'sha256=' ) ) {
+			$signature = substr( $signature, 7 );
+		}
+		$signature = strtolower( $signature );
+		$expected  = hash_hmac( 'sha256', $raw_body, $secret );
+		if ( 64 !== strlen( $signature ) || ! ctype_xdigit( $signature ) || ! hash_equals( $expected, $signature ) ) {
 			return array( 'success' => false, 'message' => 'Invalid signature.' );
 		}
-		$data    = json_decode( $raw_body, true );
-		$number  = is_array( $data ) ? sanitize_text_field( (string) ( $data['booking_number'] ?? '' ) ) : '';
+		$data = json_decode( $raw_body, true );
+		if ( ! is_array( $data ) ) {
+			return array( 'success' => false, 'message' => 'Invalid webhook JSON.' );
+		}
+		$number  = sanitize_text_field( (string) ( $data['booking_number'] ?? '' ) );
 		$booking = $number ? TG_Bookings::by_number( $number ) : null;
 		$gateway = is_array( $data ) ? sanitize_key( (string) ( $data['gateway'] ?? '' ) ) : '';
 		$adapters = self::adapters();
@@ -868,20 +1032,32 @@ final class TG_Payments {
 		if ( ! $booking ) {
 			return new WP_Error( 'tg_booking_missing', __( 'Booking not found.', 'guidegrid-travel' ) );
 		}
-		$amount = min( $amount, (float) $booking->total );
-		$last   = self::latest_for_booking( $booking_id );
-		self::record(
+		if ( 'paid' !== (string) $booking->payment_status ) {
+			return new WP_Error( 'tg_refund_payment_status', __( 'Only a paid booking can be recorded as refunded.', 'guidegrid-travel' ) );
+		}
+		if ( ! in_array( (string) $booking->booking_status, array( 'confirmed', 'paid', 'partially_paid', 'completed', 'refund_requested', 'cancelled' ), true ) ) {
+			return new WP_Error( 'tg_refund_booking_status', __( 'This booking is not in a refundable state.', 'guidegrid-travel' ) );
+		}
+		$amount = min( abs( $amount ), (float) $booking->total );
+		if ( $amount <= 0 ) {
+			return new WP_Error( 'tg_refund_amount', __( 'Enter a valid refund amount.', 'guidegrid-travel' ) );
+		}
+		$last      = self::latest_for_booking( $booking_id );
+		$record_id = self::record(
 			$booking_id,
 			array(
 				'gateway'        => $last ? $last->gateway : 'manual',
 				'method'         => $last ? $last->payment_method : 'manual',
 				'transaction_id' => $ref,
-				'amount'         => -abs( $amount ),
+				'amount'         => -$amount,
 				'currency'       => $booking->currency,
 				'status'         => 'refunded',
 				'response'       => array( 'reason' => $reason ),
 			)
 		);
+		if ( ! $record_id ) {
+			return new WP_Error( 'tg_refund_record_failed', __( 'The refund record could not be saved.', 'guidegrid-travel' ) );
+		}
 		if ( ! in_array( $booking->booking_status, array( 'refund_requested', 'cancelled' ), true ) ) {
 			$requested = TG_Bookings::update_status( $booking_id, 'refund_requested', $reason );
 			if ( is_wp_error( $requested ) ) {
@@ -893,6 +1069,17 @@ final class TG_Payments {
 			return $refunded;
 		}
 		TG_Bookings::set_payment_status( $booking_id, 'refunded' );
+		if ( ! empty( $booking->customer_id ) ) {
+			$global = $GLOBALS['wpdb'];
+			$global->query(
+				$global->prepare(
+					'UPDATE ' . TG_Database::table( 'customers' ) . ' SET total_spent = GREATEST(0, total_spent - %f), updated_at = %s WHERE id = %d',
+					$amount,
+					current_time( 'mysql', true ),
+					(int) $booking->customer_id
+				) // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			);
+		}
 		TG_Emails::refund_processed( TG_Bookings::get( $booking_id ), $amount, $reason );
 		do_action( 'tg_booking_refunded', $booking_id, $amount, $reason );
 		return true;

@@ -50,6 +50,7 @@ if ( ! function_exists( 'tg_settings' ) ) {
 			'paypal_sandbox'          => 1,
 			'paypal_client_id'        => '',
 			'paypal_client_secret'    => '',
+			'paypal_webhook_id'       => '',
 			'test_gateway_enabled'    => 0,
 			'webhook_secret'          => '', // Legacy custom-adapter webhook secret.
 			'admin_email'             => '',
@@ -89,6 +90,7 @@ if ( ! function_exists( 'tg_settings' ) ) {
 		return apply_filters( 'tg_settings', $settings );
 	}
 }
+
 
 if ( ! function_exists( 'tg_get_meta' ) ) {
 	/**

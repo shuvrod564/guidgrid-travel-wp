@@ -64,14 +64,15 @@ if ( ! function_exists( 'tg_render_reports_page' ) ) {
 		};
 
 		$total_bookings  = (int) $global->get_var( $prep( "SELECT COUNT(*) FROM {$table} WHERE {$where}" ) );
-		$revenue         = (float) $global->get_var( $prep( "SELECT COALESCE(SUM(total),0) FROM {$table} WHERE {$where} AND booking_status IN ('paid','confirmed','completed','partially_paid')" ) );
+		$revenue         = (float) $global->get_var( $prep( "SELECT COALESCE(SUM(total),0) FROM {$table} WHERE {$where} AND payment_status IN ('paid','partially_paid')" ) );
 		$cancelled       = (int) $global->get_var( $prep( "SELECT COUNT(*) FROM {$table} WHERE {$where} AND booking_status = 'cancelled'" ) );
 		$avg_value       = $total_bookings ? round( $revenue / $total_bookings, 2 ) : 0;
 		$guests_total    = (int) $global->get_var( $prep( "SELECT COALESCE(SUM(adult_count + child_count + infant_count),0) FROM {$table} WHERE {$where}" ) );
 
 		$top_tours = $global->get_results(
 			$prep(
-				"SELECT tour_id, COUNT(*) AS bookings, COALESCE(SUM(total),0) AS revenue
+				"SELECT tour_id, COUNT(*) AS bookings,
+				 COALESCE(SUM(CASE WHEN payment_status IN ('paid','partially_paid') THEN total ELSE 0 END),0) AS revenue
 				 FROM {$table}
 				 WHERE {$where} AND booking_status != 'cancelled'
 				 GROUP BY tour_id ORDER BY bookings DESC LIMIT 8"

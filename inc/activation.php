@@ -23,6 +23,7 @@ if ( ! function_exists( 'tg_activate_theme' ) ) {
 	function tg_activate_theme() {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
+		$previous_version = (string) get_option( 'tg_theme_version', '' );
 		TG_Database::install();
 		tg_add_roles();
 
@@ -31,6 +32,7 @@ if ( ! function_exists( 'tg_activate_theme' ) ) {
 		// Load latest settings (keeps existing values).
 		$settings = tg_settings();
 		update_option( 'tg_settings', $settings );
+		tg_run_versioned_upgrades( $previous_version );
 		update_option( 'tg_theme_version', TG_VERSION );
 
 		// Cron.
@@ -57,6 +59,35 @@ if ( ! function_exists( 'tg_deactivate_theme' ) ) {
 	}
 }
 add_action( 'switch_theme', 'tg_deactivate_theme' );
+
+/**
+ * Apply data repairs introduced by a theme release.
+ *
+ * @param string $from_version Previously installed theme version.
+ * @return void
+ */
+function tg_run_versioned_upgrades( string $from_version ): void {
+	if ( '' === $from_version || version_compare( $from_version, '1.0.8', '<' ) ) {
+		$global    = $GLOBALS['wpdb'];
+		$customers = TG_Database::table( 'customers' );
+		$bookings  = TG_Database::table( 'bookings' );
+		$payments  = TG_Database::table( 'payments' );
+		// Rebuild lifetime spend from received payments, net of recorded refunds.
+		$global->query(
+			"UPDATE {$customers} c
+			 SET c.total_spent = GREATEST(0, COALESCE((
+				SELECT SUM(CASE
+					WHEN p.status = 'paid' THEN p.amount
+					WHEN p.status = 'refunded' THEN p.amount
+					ELSE 0
+				END)
+				FROM {$bookings} b
+				INNER JOIN {$payments} p ON p.booking_id = b.id
+				WHERE b.customer_id = c.id
+			 ), 0))"
+		); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- internal table names and fixed SQL.
+	}
+}
 
 /**
  * Create the workflow pages the booking flow depends on.
@@ -135,14 +166,16 @@ function tg_create_workflow_pages(): array {
  * @return void
  */
 function tg_maybe_upgrade_theme() {
+	$previous_version = (string) get_option( 'tg_theme_version', '' );
 	TG_Database::maybe_install();
 
-	if ( get_option( 'tg_theme_version', '' ) === TG_VERSION ) {
+	if ( TG_VERSION === $previous_version ) {
 		return;
 	}
 
 	tg_add_roles();
 	tg_create_workflow_pages();
+	tg_run_versioned_upgrades( $previous_version );
 	update_option( 'tg_theme_version', TG_VERSION );
 
 	// Workflow pages may have just been created or assigned a template.

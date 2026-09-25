@@ -2,6 +2,63 @@
 
 All notable changes to the GuideGrid Travel theme.
 
+## 1.0.8 — Settings and payment-receipt reliability
+
+### Added
+- Verified PayPal webhook settlement for `CHECKOUT.ORDER.APPROVED` and `PAYMENT.CAPTURE.COMPLETED`, using PayPal's signature-verification API and an app-specific Webhook ID.
+- Payment-received notifications for the configured administrator email and visible Stripe/PayPal configuration status on the settings page.
+- A cryptographically secure browser-side generator for the optional custom-adapter HMAC secret.
+
+### Changed
+- Stripe, PayPal, and custom-HMAC secrets are no longer rendered back into admin HTML; blank fields preserve saved values and explicit checkboxes clear them.
+- Customer lifetime spend and revenue reports now count received payments instead of merely created or confirmed bookings; the upgrade rebuilds existing lifetime-spend totals from payment records net of refunds.
+- Payment settlement sends one specific customer payment-received message instead of immediately duplicating it with a confirmation message.
+- The admin refund action is explicitly labeled as recording a refund completed outside GuideGrid, rather than implying that the theme calls a provider refund API.
+
+### Fixed
+- Save Tour Settings during `admin_init` with capability and nonce checks, validated values, post/redirect/get notices, and persistence for the sender email and all payment fields.
+- Keep invalid credential replacements from overwriting working values, and automatically leave incomplete Stripe/PayPal configurations disabled.
+- Harden Stripe event/session matching, custom HMAC signature parsing and JSON validation, payment-reference/amount checks, and failure handling when a verified payment record cannot be written.
+- Prevent duplicate refund recording for non-paid bookings and subtract recorded refunds from customer lifetime spend.
+- Keep PayPal's server-side approval-return capture as a fallback while making verified webhooks the reliable asynchronous path.
+
+### Security
+- PayPal webhook events are accepted only after provider-side transmission-signature verification with all required headers and the configured Webhook ID.
+- The custom endpoint accepts only a valid 64-character HMAC-SHA256 digest (optionally prefixed with `sha256=`) over the untouched raw body and still requires independent adapter transaction verification.
+- No browser return, GET request, or unverified provider payload can mark a Stripe or PayPal booking paid.
+
+## 1.0.7 — Booking detail access hotfix
+
+### Fixed
+- Keep the hidden booking-detail submenu registered until after WordPress completes `user_can_access_admin_page()`, preventing valid `admin.php?page=tg-booking-detail&booking=…` links from being rejected with “Sorry, you are not allowed to access this page.”
+
+## 1.0.6 — Booking admin and safe payment simulation
+
+### Added
+- An explicitly enabled, no-charge payment simulator for local, development, and staging environments, with authenticated nonce-protected approve and decline controls.
+- Simulator payment history and clear frontend notices that distinguish test outcomes from real provider payments.
+
+### Fixed
+- Process booking row, bulk, detail, note, and refund actions during `admin_init`, before WordPress sends admin output, eliminating late-redirect header warnings.
+- Keep booking-detail routes registered and actionable while preserving the hidden submenu behavior.
+
+### Security
+- The simulator is unavailable on production environments, never settles from a GET request, verifies booking ownership or booking-management capability, and refuses expired or inactive booking holds.
+
+## 1.0.5 — Workflow page URL hotfix
+
+### Fixed
+- Match the full `page-templates/...` values WordPress stores for Booking, Confirmation, Lookup, and My Account templates.
+- Prefer existing page permalinks and use query-string fallbacks that work when Apache rewrite rules or pretty permalinks are unavailable.
+- Run versioned theme upgrades for already-active theme replacements, creating missing workflow pages and assigning their templates without requiring a theme switch.
+
+## 1.0.4 — WordPress database/admin compatibility hotfix
+
+### Fixed
+- Use WordPress's `wpdb::get_charset_collate()` method instead of reading the nonexistent `wpdb::$charset_collate` property during custom-table installation.
+- Prevent the CSV export callback from returning “Permission denied” on unrelated WordPress admin requests.
+- Explicitly grant the theme management capabilities to WordPress administrators and restore them for existing Tour Manager and Booking Manager roles.
+
 ## 1.0.3 — Customer accounts and international payments
 
 ### Added

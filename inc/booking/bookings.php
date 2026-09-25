@@ -218,7 +218,8 @@ final class TG_Bookings {
 
 		$now         = current_time( 'mysql', true );
 		$number      = self::next_number();
-		$customer_id = self::upsert_customer( $customer, $user_id, (float) $quote['total'] );
+		// Booking count changes now; lifetime spend changes only for money received.
+		$customer_id = self::upsert_customer( $customer, $user_id, $admin_paid ? (float) $quote['total'] : 0.0 );
 
 		$end_date = '';
 		$days     = tg_tour_duration_days( $tour_id );
@@ -384,7 +385,7 @@ final class TG_Bookings {
 	 *
 	 * @param array $customer  Sanitized customer data.
 	 * @param int   $user_id   Optional WP user ID.
-	 * @param float $total     The amount of the booking just created.
+	 * @param float $total     Paid amount to add now (zero for unpaid bookings).
 	 * @return int Customer row ID.
 	 */
 	private static function upsert_customer( array $customer, int $user_id, float $total = 0.0 ): int {
@@ -524,7 +525,10 @@ final class TG_Bookings {
 		}
 		if ( 'confirmed' === $status ) {
 			do_action( 'tg_booking_confirmed', $id );
-			TG_Emails::booking_confirmed( $updated );
+			// Payment settlement sends the more specific payment-received email below.
+			if ( 'payment_received' !== $reason ) {
+				TG_Emails::booking_confirmed( $updated );
+			}
 		}
 
 		return true;
@@ -765,8 +769,8 @@ final class TG_Bookings {
 			$map[ $row->booking_status ] = (int) $row->total;
 		}
 		$map['total']       = array_sum( $map );
-		$map['revenue']     = (float) $global->get_var( "SELECT COALESCE(SUM(total),0) FROM " . self::tbl() . " WHERE booking_status IN ('paid','confirmed','completed','partially_paid')" );
-		$map['pending_rev'] = (float) $global->get_var( "SELECT COALESCE(SUM(total),0) FROM " . self::tbl() . " WHERE booking_status IN ('pending','awaiting_payment')" );
+		$map['revenue']     = (float) $global->get_var( "SELECT COALESCE(SUM(total),0) FROM " . self::tbl() . " WHERE payment_status IN ('paid','partially_paid')" );
+		$map['pending_rev'] = (float) $global->get_var( "SELECT COALESCE(SUM(total),0) FROM " . self::tbl() . " WHERE payment_status IN ('pending','unpaid') AND booking_status IN ('pending','awaiting_payment')" );
 
 		return $map;
 	}

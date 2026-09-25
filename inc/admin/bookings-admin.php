@@ -542,7 +542,7 @@ if ( ! function_exists( 'tg_render_booking_detail_page' ) ) {
 					<button type="submit" form="tg-act-cancel" class="button tg-danger-btn"><?php esc_html_e( 'Cancel Booking', 'guidegrid-travel' ); ?></button>
 				<?php endif; ?>
 				<?php if ( in_array( $booking->booking_status, array( 'refund_requested' ), true ) ) : ?>
-					<button type="submit" form="tg-act-refund" class="button tg-danger-btn"><?php esc_html_e( 'Process Full Refund', 'guidegrid-travel' ); ?></button>
+					<button type="submit" form="tg-act-refund" class="button tg-danger-btn"><?php esc_html_e( 'Record Full Refund', 'guidegrid-travel' ); ?></button>
 				<?php endif; ?>
 				<button type="button" class="button" onclick="window.print()"><?php esc_html_e( 'Print', 'guidegrid-travel' ); ?></button>
 			</div>
@@ -552,7 +552,7 @@ if ( ! function_exists( 'tg_render_booking_detail_page' ) ) {
 			<form id="tg-act-paid" method="post" action="<?php echo esc_url( $base_url ); ?>"><?php echo wp_nonce_field( 'tg_booking_detail', 'tg_detail_nonce', false, false ); ?><input type="hidden" name="tg_detail_action" value="mark_paid" /><input type="hidden" name="tg_id" value="<?php echo esc_attr( (string) $id ); ?>" /></form>
 			<form id="tg-act-complete" method="post" action="<?php echo esc_url( $base_url ); ?>"><?php echo wp_nonce_field( 'tg_booking_detail', 'tg_detail_nonce', false, false ); ?><input type="hidden" name="tg_detail_action" value="complete" /><input type="hidden" name="tg_id" value="<?php echo esc_attr( (string) $id ); ?>" /></form>
 			<form id="tg-act-refundreq" method="post" action="<?php echo esc_url( $base_url ); ?>"><?php echo wp_nonce_field( 'tg_booking_detail', 'tg_detail_nonce', false, false ); ?><input type="hidden" name="tg_detail_action" value="refund_requested" /><input type="hidden" name="tg_id" value="<?php echo esc_attr( (string) $id ); ?>" /></form>
-			<form id="tg-act-refund" method="post" action="<?php echo esc_url( $base_url ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Process a full refund for this booking?', 'guidegrid-travel' ) ); ?>');"><?php echo wp_nonce_field( 'tg_booking_detail', 'tg_detail_nonce', false, false ); ?><input type="hidden" name="tg_detail_action" value="refund" /><input type="hidden" name="tg_id" value="<?php echo esc_attr( (string) $id ); ?>" /></form>
+			<form id="tg-act-refund" method="post" action="<?php echo esc_url( $base_url ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Confirm the funds were refunded outside GuideGrid, then record the full refund?', 'guidegrid-travel' ) ); ?>');"><?php echo wp_nonce_field( 'tg_booking_detail', 'tg_detail_nonce', false, false ); ?><input type="hidden" name="tg_detail_action" value="refund" /><input type="hidden" name="tg_id" value="<?php echo esc_attr( (string) $id ); ?>" /></form>
 			<form id="tg-act-cancel" method="post" action="<?php echo esc_url( $base_url ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Cancel this booking?', 'guidegrid-travel' ) ); ?>');"><?php echo wp_nonce_field( 'tg_booking_detail', 'tg_detail_nonce', false, false ); ?><input type="hidden" name="tg_detail_action" value="cancel" /><input type="hidden" name="tg_id" value="<?php echo esc_attr( (string) $id ); ?>" /></form>
 
 			<div class="tg-detail-card tg-notes-card">
