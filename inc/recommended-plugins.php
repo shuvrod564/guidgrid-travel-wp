@@ -7,30 +7,20 @@
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * FluentSMTP plugin details.
- */
-const TG_FLUENT_SMTP_SLUG = 'fluent-smtp';
-const TG_FLUENT_SMTP_FILE = 'fluent-smtp/fluent-smtp.php';
-const TG_FLUENT_SMTP_NOTICE = 'tg_recommend_fluent_smtp';
-
-/**
- * Queue the recommendation after the theme is activated.
- *
- * @return void
- */
-function tg_recommend_plugins_after_theme_activation(): void {
-	set_transient(
-		TG_FLUENT_SMTP_NOTICE,
-		1,
-		30 * DAY_IN_SECONDS
-	); 
+if ( ! defined( 'TG_FLUENT_SMTP_SLUG' ) ) {
+	define( 'TG_FLUENT_SMTP_SLUG', 'fluent-smtp' );
 }
-add_action(
-	'after_switch_theme',
-	'tg_recommend_plugins_after_theme_activation',
-	20
-);
+
+if ( ! defined( 'TG_FLUENT_SMTP_FILE' ) ) {
+	define( 'TG_FLUENT_SMTP_FILE', 'fluent-smtp/fluent-smtp.php' );
+}
+
+if ( ! defined( 'TG_FLUENT_SMTP_DISMISSED_META' ) ) {
+	define(
+		'TG_FLUENT_SMTP_DISMISSED_META',
+		'tg_fluent_smtp_notice_dismissed'
+	);
+}
 
 /**
  * Determine whether FluentSMTP is active.
@@ -46,13 +36,34 @@ function tg_is_fluent_smtp_active(): bool {
 		return true;
 	}
 
-	return is_multisite() &&
-		function_exists( 'is_plugin_active_for_network' ) &&
-		is_plugin_active_for_network( TG_FLUENT_SMTP_FILE );
+	return is_multisite()
+		&& function_exists( 'is_plugin_active_for_network' )
+		&& is_plugin_active_for_network( TG_FLUENT_SMTP_FILE );
 }
 
 /**
- * Dismiss the recommendation.
+ * Reset the recommendation for the administrator who activates the theme.
+ *
+ * @return void
+ */
+function tg_reset_fluent_smtp_recommendation(): void {
+	$user_id = get_current_user_id();
+
+	if ( $user_id ) {
+		delete_user_meta(
+			$user_id,
+			TG_FLUENT_SMTP_DISMISSED_META
+		);
+	}
+}
+add_action(
+	'after_switch_theme',
+	'tg_reset_fluent_smtp_recommendation',
+	20
+);
+
+/**
+ * Process the Dismiss action.
  *
  * @return void
  */
@@ -61,12 +72,12 @@ function tg_dismiss_fluent_smtp_recommendation(): void {
 		return;
 	}
 
-	if (
-		! current_user_can( 'install_plugins' ) &&
-		! current_user_can( 'activate_plugins' )
-	) {
+	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die(
-			esc_html__( 'You do not have permission to dismiss this notice.', 'guidegrid-travel' ),
+			esc_html__(
+				'You do not have permission to dismiss this notice.',
+				'guidegrid-travel'
+			),
 			esc_html__( 'Forbidden', 'guidegrid-travel' ),
 			array( 'response' => 403 )
 		);
@@ -74,9 +85,13 @@ function tg_dismiss_fluent_smtp_recommendation(): void {
 
 	check_admin_referer( 'tg_dismiss_fluent_smtp' );
 
-	delete_transient( TG_FLUENT_SMTP_NOTICE );
+	update_user_meta(
+		get_current_user_id(),
+		TG_FLUENT_SMTP_DISMISSED_META,
+		1
+	);
 
-	wp_safe_redirect( admin_url() );
+	wp_safe_redirect( admin_url( 'index.php' ) );
 	exit;
 }
 add_action(
@@ -90,19 +105,21 @@ add_action(
  * @return void
  */
 function tg_fluent_smtp_recommendation_notice(): void {
-	if ( ! get_transient( TG_FLUENT_SMTP_NOTICE ) ) {
-		return;
-	}
-
-	if (
-		! current_user_can( 'install_plugins' ) &&
-		! current_user_can( 'activate_plugins' )
-	) {
+	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
 
 	if ( tg_is_fluent_smtp_active() ) {
-		delete_transient( TG_FLUENT_SMTP_NOTICE );
+		return;
+	}
+
+	$dismissed = get_user_meta(
+		get_current_user_id(),
+		TG_FLUENT_SMTP_DISMISSED_META,
+		true
+	);
+
+	if ( $dismissed ) {
 		return;
 	}
 
@@ -114,9 +131,17 @@ function tg_fluent_smtp_recommendation_notice(): void {
 	$action_label = '';
 
 	if ( version_compare( get_bloginfo( 'version' ), '6.5', '<' ) ) {
-		$action_url   = admin_url( 'update-core.php' );
-		$action_label = __( 'Update WordPress', 'guidegrid-travel' );
-	} elseif ( $plugin_installed && current_user_can( 'activate_plugins' ) ) {
+		if ( current_user_can( 'update_core' ) ) {
+			$action_url   = admin_url( 'update-core.php' );
+			$action_label = __(
+				'Update WordPress',
+				'guidegrid-travel'
+			);
+		}
+	} elseif (
+		$plugin_installed &&
+		current_user_can( 'activate_plugins' )
+	) {
 		$action_url = wp_nonce_url(
 			self_admin_url(
 				'plugins.php?action=activate&plugin=' .
@@ -125,7 +150,10 @@ function tg_fluent_smtp_recommendation_notice(): void {
 			'activate-plugin_' . TG_FLUENT_SMTP_FILE
 		);
 
-		$action_label = __( 'Activate FluentSMTP', 'guidegrid-travel' );
+		$action_label = __(
+			'Activate FluentSMTP',
+			'guidegrid-travel'
+		);
 	} elseif ( current_user_can( 'install_plugins' ) ) {
 		$action_url = wp_nonce_url(
 			self_admin_url(
@@ -135,14 +163,17 @@ function tg_fluent_smtp_recommendation_notice(): void {
 			'install-plugin_' . TG_FLUENT_SMTP_SLUG
 		);
 
-		$action_label = __( 'Install FluentSMTP', 'guidegrid-travel' );
+		$action_label = __(
+			'Install FluentSMTP',
+			'guidegrid-travel'
+		);
 	}
 
 	$dismiss_url = wp_nonce_url(
 		add_query_arg(
 			'tg_dismiss_fluent_smtp',
 			'1',
-			admin_url()
+			admin_url( 'index.php' )
 		),
 		'tg_dismiss_fluent_smtp'
 	);
@@ -151,14 +182,19 @@ function tg_fluent_smtp_recommendation_notice(): void {
 	<div class="notice notice-info">
 		<p>
 			<strong>
-				<?php esc_html_e( 'Recommended: Configure reliable email delivery', 'guidegrid-travel' ); ?>
+				<?php
+				esc_html_e(
+					'Recommended plugin: FluentSMTP',
+					'guidegrid-travel'
+				);
+				?>
 			</strong>
 		</p>
 
 		<p>
 			<?php
 			esc_html_e(
-				'GuideGrid Travel sends contact, enquiry, booking, payment and account emails through WordPress. We recommend FluentSMTP to connect WordPress to an authenticated email provider.',
+				'GuideGrid Travel uses WordPress email for contact forms, enquiries, bookings and payment notifications. Install FluentSMTP to connect WordPress to a reliable email provider.',
 				'guidegrid-travel'
 			);
 			?>
@@ -178,7 +214,12 @@ function tg_fluent_smtp_recommendation_notice(): void {
 				class="button button-secondary"
 				href="<?php echo esc_url( $dismiss_url ); ?>"
 			>
-				<?php esc_html_e( 'Dismiss', 'guidegrid-travel' ); ?>
+				<?php
+				esc_html_e(
+					'Dismiss',
+					'guidegrid-travel'
+				);
+				?>
 			</a>
 		</p>
 	</div>
@@ -189,4 +230,7 @@ add_action(
 	'tg_fluent_smtp_recommendation_notice'
 );
 
- 
+add_action(
+	'network_admin_notices',
+	'tg_fluent_smtp_recommendation_notice'
+);
