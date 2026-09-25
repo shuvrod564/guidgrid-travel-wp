@@ -201,7 +201,6 @@
 			}
 			thumbs.forEach(function (thumb) {
 				thumb.addEventListener('click', function () {
-					console.log('clicked');
 					thumbs.forEach(function (t) {
 						t.classList.remove('is-active');
 					});
@@ -328,18 +327,20 @@
 				e.preventDefault();
 				var action = form.getAttribute('data-action');
 				var btn = form.querySelector('button[type="submit"]');
-				// var data = new URLSearchParams(new FormData(form));
-				// data.append('action', action);
-				// data.append('tg_nonce', d.nonce || '');
 				var formData = new FormData(form);
 				var data = new URLSearchParams();
-
 				formData.forEach(function (value, key) {
 					data.append(key, value);
 				});
-
 				data.set('action', action || '');
 				data.set('tg_nonce', d.nonce || '');
+
+				form.querySelectorAll('.tg-field-error').forEach(function (el) {
+					el.textContent = '';
+				});
+				form.querySelectorAll('.has-error').forEach(function (el) {
+					el.classList.remove('has-error');
+				});
 
 				if (btn) {
 					btn.setAttribute('aria-busy', 'true');
@@ -349,9 +350,7 @@
 				fetch(d.ajaxUrl, {
 					method: 'POST',
 					credentials: 'same-origin',
-					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-					},
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
 					body: data.toString()
 				})
 					.then(function (r) {
@@ -369,6 +368,21 @@
 								el.classList.remove('has-error');
 							});
 						} else {
+							var fields = res && res.data && res.data.fields ? res.data.fields : {};
+							form.querySelectorAll('[name]').forEach(function (input) {
+								var fieldMessage = fields[input.name];
+								if (!fieldMessage) {
+									return;
+								}
+								var wrapper = input.closest('.tg-field');
+								if (wrapper) {
+									wrapper.classList.add('has-error');
+									var error = wrapper.querySelector('.tg-field-error');
+									if (error) {
+										error.textContent = fieldMessage;
+									}
+								}
+							});
 							toast(message || I18N.error, 'error');
 						}
 					})
@@ -402,6 +416,39 @@
 		}
 	}
 
+	function initReviewFormToggles() {
+		document.querySelectorAll('[data-tg-review-toggle]').forEach(function (button) {
+			button.addEventListener('click', function () {
+				var formId = button.getAttribute('aria-controls');
+				var reviewForm = document.getElementById(formId);
+
+				if (!reviewForm) {
+					return;
+				}
+
+				reviewForm.hidden = false;
+				button.setAttribute('aria-expanded', 'true');
+
+				reviewForm.scrollIntoView({
+					behavior: 'smooth',
+					block: 'start'
+				});
+
+				window.setTimeout(function () {
+					var firstField = reviewForm.querySelector(
+						'input:not([type="hidden"]), textarea, select'
+					);
+
+					if (firstField) {
+						firstField.focus({
+							preventScroll: true
+						});
+					}
+				}, 400);
+			});
+		});
+	}
+
 	/* ================= Init ================= */
 	function init() {
 		initNav();
@@ -413,6 +460,7 @@
 		initAjaxForms();
 		initMobileCta();
 		updateWishlistCount();
+		initReviewFormToggles();
 	}
 
 	if (document.readyState === 'loading') {

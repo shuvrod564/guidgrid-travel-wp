@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TG_VERSION', '1.0.7' );
+define( 'TG_VERSION', '1.0.9' );
 define( 'TG_DB_VERSION', '1.0.0' );
 define( 'TG_DIR', get_template_directory() );
 define( 'TG_URI', get_template_directory_uri() );
@@ -42,10 +42,11 @@ require TG_DIR . '/inc/ajax.php';
 require TG_DIR . '/inc/rest.php';
 require TG_DIR . '/inc/cron.php';
 require TG_DIR . '/inc/activation.php';
-require TG_DIR . '/inc/recommended-plugins.php';
 
 if ( is_admin() ) {
 	require TG_DIR . '/inc/admin/admin-menu.php';
+	require TG_DIR . '/inc/admin/front-page-hero.php';
+	require TG_DIR . '/inc/admin/recommended-plugins.php';
 	require TG_DIR . '/inc/admin/settings.php';
 	require TG_DIR . '/inc/admin/bookings-admin.php';
 	require TG_DIR . '/inc/admin/calendar.php';
@@ -56,18 +57,3 @@ if ( is_admin() ) {
 	require TG_DIR . '/inc/admin/dashboard-widget.php';
 	require TG_DIR . '/inc/admin/demo-importer.php';
 }
-
-
-// add_action(
-// 	'wp_mail_failed',
-// 	function ( $error ) {
-// 		if ( is_wp_error( $error ) ) {
-// 			error_log(
-// 				'GuideGrid wp_mail failure: ' .
-// 				$error->get_error_message() .
-// 				' | ' .
-// 				wp_json_encode( $error->get_error_data() )
-// 			);
-// 		}
-// 	}
-// );

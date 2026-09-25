@@ -11,9 +11,19 @@ defined( 'ABSPATH' ) || exit;
 get_header();
 
 $settings      = tg_settings();
-
-// FIX: Use !empty() instead of direct boolean evaluation to prevent PHP 8 "Undefined array key" warnings
-$hero_image    = ! empty( $settings['hero_image_url'] ) ? $settings['hero_image_url'] : tg_demo_img( 'tg-hero-travel', 1600, 900 );
+$front_page_id = (int) get_queried_object_id();
+$hero_title    = $front_page_id && metadata_exists( 'post', $front_page_id, '_tg_front_hero_title' )
+	? (string) get_post_meta( $front_page_id, '_tg_front_hero_title', true )
+	: ( ! empty( $settings['hero_title'] ) ? (string) $settings['hero_title'] : __( 'Explore the World, One Tour at a Time', 'guidegrid-travel' ) );
+$hero_text     = $front_page_id && metadata_exists( 'post', $front_page_id, '_tg_front_hero_text' )
+	? (string) get_post_meta( $front_page_id, '_tg_front_hero_text', true )
+	: ( ! empty( $settings['hero_text'] ) ? (string) $settings['hero_text'] : __( 'Handcrafted tours, local guides and transparent pricing — from island escapes to Himalayan treks.', 'guidegrid-travel' ) );
+$hero_image_id = $front_page_id ? absint( get_post_meta( $front_page_id, '_tg_front_hero_image_id', true ) ) : 0;
+$hero_image    = $hero_image_id ? wp_get_attachment_image_url( $hero_image_id, 'full' ) : '';
+if ( ! $hero_image ) {
+	$hero_image = ! empty( $settings['hero_image_url'] ) ? (string) $settings['hero_image_url'] : tg_demo_img( 'tg-hero-travel', 1600, 900 );
+}
+$hero_style = sprintf( 'background-image:url("%s");', esc_url_raw( $hero_image ) );
 
 $tours_query   = new WP_Query(
     array(
@@ -79,13 +89,10 @@ $testimonial_rows = $GLOBALS['wpdb']->get_results( 'SELECT * FROM ' . TG_Databas
 ?>
 
 <!-- ============ Hero ============ -->
-<section class="tg-hero" style="background-image:url(<?php echo esc_url( $hero_image ); ?>);">
+<section class="tg-hero" style="<?php echo esc_attr( $hero_style ); ?>">
     <div class="tg-container">
-        <!-- FIX: Apply !empty() check here as well to prevent similar warnings for hero_title -->
-        <h1><?php echo esc_html( ! empty( $settings['hero_title'] ) ? $settings['hero_title'] : __( 'Explore the World, One Tour at a Time', 'guidegrid-travel' ) ); ?></h1>
-
-        <!-- FIX: Apply !empty() check here as well to prevent similar warnings for hero_text -->
-        <p><?php echo esc_html( ! empty( $settings['hero_text'] ) ? $settings['hero_text'] : __( 'Handcrafted tours, local guides and transparent pricing — from island escapes to Himalayan treks.', 'guidegrid-travel' ) ); ?></p>
+        <h1><?php echo esc_html( $hero_title ); ?></h1>
+        <p><?php echo esc_html( $hero_text ); ?></p>
 
         <?php get_template_part( 'template-parts/components/hero-search' ); ?>
     </div>

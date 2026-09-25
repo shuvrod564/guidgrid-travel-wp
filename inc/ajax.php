@@ -317,10 +317,8 @@ if ( ! function_exists( 'tg_ajax_submit_contact' ) ) {
 	 */
 	function tg_ajax_submit_contact() {
 		if ( ! tg_ajax_verify_nonce() ) {
-			wp_send_json_error( array( 'message' => 'Invalid session.' ), 403 );
+			wp_send_json_error( array( 'message' => __( 'Invalid session. Please refresh the page.', 'guidegrid-travel' ) ), 403 );
 		}
-
-		// Honeypot: bots fill this hidden field.
 		if ( ! empty( $_POST['tg_website'] ) ) {
 			wp_send_json_success( array( 'message' => __( 'Message sent.', 'guidegrid-travel' ) ) );
 		}
@@ -330,159 +328,62 @@ if ( ! function_exists( 'tg_ajax_submit_contact' ) ) {
 			wp_send_json_error( array( 'message' => $limit->get_error_message() ), 429 );
 		}
 
-		$name    = isset( $_POST['name'] )
-			? trim( sanitize_text_field( wp_unslash( $_POST['name'] ) ) )
-			: '';
-
-		$email   = isset( $_POST['email'] )
-			? sanitize_email( wp_unslash( $_POST['email'] ) )
-			: '';
-
-		$phone   = isset( $_POST['phone'] )
-			? sanitize_text_field( wp_unslash( $_POST['phone'] ) )
-			: '';
-
-		$subject = isset( $_POST['subject'] )
-			? sanitize_text_field( wp_unslash( $_POST['subject'] ) )
-			: '';
-
-		$message = isset( $_POST['message'] )
-			? trim( sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) )
-			: '';
-
-		$message_length = function_exists( 'mb_strlen' )
-			? mb_strlen( $message )
-			: strlen( $message );
-
-		$field_errors = array();
-
+		$name    = isset( $_POST['name'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['name'] ) ) ) : '';
+		$email   = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+		$phone   = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+		$subject = isset( $_POST['subject'] ) ? sanitize_text_field( wp_unslash( $_POST['subject'] ) ) : '';
+		$message = isset( $_POST['message'] ) ? trim( sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) ) : '';
+		$length  = function_exists( 'mb_strlen' ) ? mb_strlen( $message ) : strlen( $message );
+		$errors  = array();
 		if ( '' === $name ) {
-			$field_errors['name'] = __( 'Please enter your name.', 'guidegrid-travel' );
+			$errors['name'] = __( 'Please enter your name.', 'guidegrid-travel' );
 		}
-
 		if ( ! is_email( $email ) ) {
-			$field_errors['email'] = __( 'Please enter a valid email address.', 'guidegrid-travel' );
+			$errors['email'] = __( 'Please enter a valid email address.', 'guidegrid-travel' );
+		}
+		if ( $length < 5 ) {
+			$errors['message'] = __( 'Please enter a message containing at least five characters.', 'guidegrid-travel' );
+		}
+		if ( $errors ) {
+			wp_send_json_error( array( 'message' => __( 'Please correct the highlighted fields.', 'guidegrid-travel' ), 'fields' => $errors ), 422 );
 		}
 
-		if ( $message_length < 5 ) {
-			$field_errors['message'] = __( 'Please enter a message containing at least five characters.', 'guidegrid-travel' );
+		$settings   = tg_settings();
+		$to         = sanitize_email( ! empty( $settings['contact_email'] ) ? $settings['contact_email'] : get_option( 'admin_email' ) );
+		$from_name  = sanitize_text_field( ! empty( $settings['email_from_name'] ) ? $settings['email_from_name'] : get_bloginfo( 'name' ) );
+		$from_email = sanitize_email( ! empty( $settings['email_from_email'] ) ? $settings['email_from_email'] : get_option( 'admin_email' ) );
+		if ( ! is_email( $to ) || ! is_email( $from_email ) ) {
+			wp_send_json_error( array( 'message' => __( 'The contact email settings are incomplete.', 'guidegrid-travel' ) ), 500 );
 		}
 
-		if ( $field_errors ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Please correct the highlighted fields.', 'guidegrid-travel' ),
-					'fields'  => $field_errors,
-				),
-				422
-			);
-		} 
-
-		$settings = tg_settings();
-
-		$to = ! empty( $settings['contact_email'] )
-			? sanitize_email( $settings['contact_email'] )
-			: sanitize_email( get_option( 'admin_email' ) );
-
-		$from_name = ! empty( $settings['email_from_name'] )
-			? sanitize_text_field( $settings['email_from_name'] )
-			: sanitize_text_field( get_bloginfo( 'name' ) );
-
-		$from_email = ! empty( $settings['email_from_email'] )
-			? sanitize_email( $settings['email_from_email'] )
-			: sanitize_email( get_option( 'admin_email' ) );
-
-		if ( ! is_email( $to ) ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'The contact recipient email is not configured correctly.', 'guidegrid-travel' ),
-				),
-				500
-			);
-		}
-
-		if ( ! is_email( $from_email ) ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'The sender email is not configured correctly.', 'guidegrid-travel' ),
-				),
-				500
-			);
-		}
-
-		/*
-		* Build the message body before calling wp_mail().
-		*/
 		$body_lines = array(
 			__( 'New contact form submission', 'guidegrid-travel' ),
 			'',
-			sprintf(
-				/* translators: %s: sender name */
-				__( 'Name: %s', 'guidegrid-travel' ),
-				$name
-			),
-			sprintf(
-				/* translators: %s: sender email */
-				__( 'Email: %s', 'guidegrid-travel' ),
-				$email
-			),
+			sprintf( /* translators: %s: sender name */ __( 'Name: %s', 'guidegrid-travel' ), $name ),
+			sprintf( /* translators: %s: sender email */ __( 'Email: %s', 'guidegrid-travel' ), $email ),
 		);
-
-		if ( '' !== $phone ) {
-			$body_lines[] = sprintf(
-				/* translators: %s: sender phone */
-				__( 'Phone: %s', 'guidegrid-travel' ),
-				$phone
-			);
+		if ( $phone ) {
+			$body_lines[] = sprintf( /* translators: %s: sender phone */ __( 'Phone: %s', 'guidegrid-travel' ), $phone );
 		}
-
-		if ( '' !== $subject ) {
-			$body_lines[] = sprintf(
-				/* translators: %s: submitted subject */
-				__( 'Subject: %s', 'guidegrid-travel' ),
-				$subject
-			);
+		if ( $subject ) {
+			$body_lines[] = sprintf( /* translators: %s: submitted subject */ __( 'Subject: %s', 'guidegrid-travel' ), $subject );
 		}
-
 		$body_lines[] = '';
 		$body_lines[] = __( 'Message:', 'guidegrid-travel' );
 		$body_lines[] = $message;
-
-		$body = implode( "\n", $body_lines );
-
-		$mail_subject = '[TG] ' . (
-			$subject
-				? $subject
-				: __( 'Contact form', 'guidegrid-travel' )
-		);
-
-		$headers = array(
+		$body         = implode( "\n", $body_lines );
+		$mail_subject = '[TG] ' . ( $subject ? $subject : __( 'Contact form', 'guidegrid-travel' ) );
+		$headers      = array(
 			'Content-Type: text/plain; charset=UTF-8',
 			'From: ' . $from_name . ' <' . $from_email . '>',
 			'Reply-To: ' . $name . ' <' . $email . '>',
 		);
-
-		$sent = wp_mail(
-			$to,
-			$mail_subject,
-			$body,
-			$headers
-		);
-
-		if ( ! $sent ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Your message could not be emailed. Please try again later.', 'guidegrid-travel' ),
-				),
-				500
-			);
+		if ( ! wp_mail( $to, $mail_subject, $body, $headers ) ) {
+			wp_send_json_error( array( 'message' => __( 'Your message could not be emailed. Please try again later.', 'guidegrid-travel' ) ), 500 );
 		}
 
-		wp_send_json_success(
-			array(
-				'message' => __( 'Thank you! We have received your message and will reply soon.', 'guidegrid-travel' ),
-			)
-		);
+		do_action( 'tg_contact_submitted', $name, $email, $message );
+		wp_send_json_success( array( 'message' => __( 'Thank you! We have received your message and will reply soon.', 'guidegrid-travel' ) ) );
 	}
 }
 add_action( 'wp_ajax_tg_submit_contact', 'tg_ajax_submit_contact' );
@@ -490,132 +391,54 @@ add_action( 'wp_ajax_nopriv_tg_submit_contact', 'tg_ajax_submit_contact' );
 
 if ( ! function_exists( 'tg_ajax_submit_enquiry' ) ) {
 	/**
-	 * Store a tour enquiry and notify the administrator.
+	 * Tour enquiry form (stored + admin email).
 	 *
 	 * @return void
 	 */
 	function tg_ajax_submit_enquiry() {
 		if ( ! tg_ajax_verify_nonce() ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Invalid session. Please refresh the page.', 'guidegrid-travel' ),
-				),
-				403
-			);
+			wp_send_json_error( array( 'message' => __( 'Invalid session. Please refresh the page.', 'guidegrid-travel' ) ), 403 );
 		}
-
-		// Silently accept likely bot submissions.
 		if ( ! empty( $_POST['tg_website'] ) ) {
-			wp_send_json_success(
-				array(
-					'message' => __( 'Enquiry sent.', 'guidegrid-travel' ),
-				)
-			);
+			wp_send_json_success( array( 'message' => __( 'Enquiry sent.', 'guidegrid-travel' ) ) );
 		}
 
 		$limit = tg_rate_limit( 'enquiry:' . tg_ip(), 5, 900 );
-
 		if ( is_wp_error( $limit ) ) {
-			wp_send_json_error(
-				array(
-					'message' => $limit->get_error_message(),
-				),
-				429
-			);
+			wp_send_json_error( array( 'message' => $limit->get_error_message() ), 429 );
 		}
 
-		$name = isset( $_POST['name'] )
-			? trim( sanitize_text_field( wp_unslash( $_POST['name'] ) ) )
-			: '';
-
-		$email = isset( $_POST['email'] )
-			? sanitize_email( wp_unslash( $_POST['email'] ) )
-			: '';
-
-		$phone = isset( $_POST['phone'] )
-			? sanitize_text_field( wp_unslash( $_POST['phone'] ) )
-			: '';
-
-		$destination = isset( $_POST['destination'] )
-			? sanitize_text_field( wp_unslash( $_POST['destination'] ) )
-			: '';
-
-		$tour_id = isset( $_POST['tour_id'] )
-			? absint( $_POST['tour_id'] )
-			: 0;
-
-		$raw_travel_date = isset( $_POST['travel_date'] )
-			? sanitize_text_field( wp_unslash( $_POST['travel_date'] ) )
-			: '';
-
-		$travel_date = '';
-
-		if ( '' !== $raw_travel_date ) {
-			$normalized_date = TG_Availability::normalize_date( $raw_travel_date );
-
-			if ( ! $normalized_date ) {
-				wp_send_json_error(
-					array(
-						'message' => __( 'Please enter a valid travel date.', 'guidegrid-travel' ),
-						'fields'  => array(
-							'travel_date' => __( 'Please enter a valid travel date.', 'guidegrid-travel' ),
-						),
-					),
-					422
-				);
-			}
-
-			$travel_date = $normalized_date;
-		}
-
-		$travelers = isset( $_POST['travelers'] )
-			? max( 1, absint( $_POST['travelers'] ) )
-			: 1;
-
-		$budget = isset( $_POST['budget'] )
-			? sanitize_text_field( wp_unslash( $_POST['budget'] ) )
-			: '';
-
-		$message = isset( $_POST['message'] )
-			? trim( sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) )
-			: '';
-
-		$message_length = function_exists( 'mb_strlen' )
-			? mb_strlen( $message )
-			: strlen( $message );
-
-		$field_errors = array();
-
+		$name            = isset( $_POST['name'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['name'] ) ) ) : '';
+		$email           = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+		$phone           = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+		$destination     = isset( $_POST['destination'] ) ? sanitize_text_field( wp_unslash( $_POST['destination'] ) ) : '';
+		$tour_id         = isset( $_POST['tour_id'] ) ? absint( $_POST['tour_id'] ) : 0;
+		$raw_travel_date = isset( $_POST['travel_date'] ) ? sanitize_text_field( wp_unslash( $_POST['travel_date'] ) ) : '';
+		$travel_date     = $raw_travel_date ? TG_Availability::normalize_date( $raw_travel_date ) : '';
+		$travelers       = isset( $_POST['travelers'] ) ? max( 1, absint( $_POST['travelers'] ) ) : 1;
+		$budget          = isset( $_POST['budget'] ) ? sanitize_text_field( wp_unslash( $_POST['budget'] ) ) : '';
+		$message         = isset( $_POST['message'] ) ? trim( sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) ) : '';
+		$length          = function_exists( 'mb_strlen' ) ? mb_strlen( $message ) : strlen( $message );
+		$errors          = array();
 		if ( '' === $name ) {
-			$field_errors['name'] = __( 'Please enter your name.', 'guidegrid-travel' );
+			$errors['name'] = __( 'Please enter your name.', 'guidegrid-travel' );
 		}
-
 		if ( ! is_email( $email ) ) {
-			$field_errors['email'] = __( 'Please enter a valid email address.', 'guidegrid-travel' );
+			$errors['email'] = __( 'Please enter a valid email address.', 'guidegrid-travel' );
 		}
-
-		if ( $message_length < 5 ) {
-			$field_errors['message'] = __( 'Please enter a message containing at least five characters.', 'guidegrid-travel' );
+		if ( $length < 5 ) {
+			$errors['message'] = __( 'Please enter a message containing at least five characters.', 'guidegrid-travel' );
 		}
-
-		if ( $field_errors ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Please correct the enquiry form fields.', 'guidegrid-travel' ),
-					'fields'  => $field_errors,
-				),
-				422
-			);
+		if ( $raw_travel_date && ! $travel_date ) {
+			$errors['travel_date'] = __( 'Please enter a valid travel date.', 'guidegrid-travel' );
+		}
+		if ( $errors ) {
+			wp_send_json_error( array( 'message' => __( 'Please correct the highlighted enquiry fields.', 'guidegrid-travel' ), 'fields' => $errors ), 422 );
 		}
 
 		if ( $tour_id ) {
 			$tour = get_post( $tour_id );
-
-			if (
-				! $tour ||
-				'tour' !== $tour->post_type ||
-				'publish' !== $tour->post_status
-			) {
+			if ( ! $tour || 'tour' !== $tour->post_type || 'publish' !== $tour->post_status ) {
 				$tour_id = 0;
 			}
 		}
@@ -623,8 +446,7 @@ if ( ! function_exists( 'tg_ajax_submit_enquiry' ) ) {
 		$global = $GLOBALS['wpdb'];
 		$table  = TG_Database::table( 'enquiries' );
 		$now    = current_time( 'mysql', true );
-
-		$inserted = $global->insert(
+		$saved  = $global->insert(
 			$table,
 			array(
 				'name'        => $name,
@@ -639,190 +461,79 @@ if ( ! function_exists( 'tg_ajax_submit_enquiry' ) ) {
 				'status'      => 'new',
 				'created_at'  => $now,
 			),
-			array(
-				'%s',
-				'%s',
-				'%s',
-				'%s',
-				'%d',
-				'%s',
-				'%d',
-				'%s',
-				'%s',
-				'%s',
-				'%s',
-			)
+			array( '%s', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%s', '%s', '%s' )
 		);
-
-		if ( false === $inserted || ! $global->insert_id ) {
+		if ( false === $saved || ! $global->insert_id ) {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log(
-					'GuideGrid enquiry insert failed: ' .
-					sanitize_text_field( (string) $global->last_error )
-				);
+				error_log( 'GuideGrid enquiry insert failed: ' . sanitize_text_field( (string) $global->last_error ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			}
-
-			wp_send_json_error(
-				array(
-					'message' => __( 'Your enquiry could not be saved. Please try again.', 'guidegrid-travel' ),
-				),
-				500
-			);
+			wp_send_json_error( array( 'message' => __( 'Your enquiry could not be saved. Please try again.', 'guidegrid-travel' ) ), 500 );
 		}
 
 		$enquiry_id = (int) $global->insert_id;
-
-		$enquiry = $global->get_row(
-			$global->prepare(
-				"SELECT * FROM {$table} WHERE id = %d LIMIT 1",
-				$enquiry_id
-			)
-		);
-
+		$enquiry    = $global->get_row( $global->prepare( 'SELECT * FROM ' . $table . ' WHERE id = %d LIMIT 1', $enquiry_id ) );
 		if ( ! $enquiry ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Your enquiry was saved, but it could not be loaded. Please contact us if you need assistance.', 'guidegrid-travel' ),
-				),
-				500
-			);
+			wp_send_json_error( array( 'message' => __( 'Your enquiry was saved but could not be loaded. Please contact us if you need assistance.', 'guidegrid-travel' ) ), 500 );
 		}
 
-		/*
-		 * The enquiry has already been saved. A mail failure should not cause
-		 * the customer to submit it repeatedly and create duplicate records.
-		 */
 		$mail_sent = TG_Emails::new_enquiry_admin( $enquiry );
-
 		if ( ! $mail_sent && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log(
-				sprintf(
-					'GuideGrid enquiry #%d was saved, but the admin notification email failed.',
-					$enquiry_id
-				)
-			);
+			error_log( sprintf( 'GuideGrid enquiry #%d was saved, but its admin email failed.', $enquiry_id ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 		}
-
 		do_action( 'tg_enquiry_submitted', $enquiry_id, $enquiry );
-
-		wp_send_json_success(
-			array(
-				'message'    => __( 'Thank you! Our team will contact you within 24 hours.', 'guidegrid-travel' ),
-				'enquiry_id' => $enquiry_id,
-			)
-		);
+		wp_send_json_success( array( 'message' => __( 'Thank you! Our team will contact you within 24 hours.', 'guidegrid-travel' ), 'enquiry_id' => $enquiry_id ) );
 	}
 }
-
 add_action( 'wp_ajax_tg_submit_enquiry', 'tg_ajax_submit_enquiry' );
 add_action( 'wp_ajax_nopriv_tg_submit_enquiry', 'tg_ajax_submit_enquiry' );
 
 if ( ! function_exists( 'tg_ajax_subscribe_newsletter' ) ) {
 	/**
-	 * Store a newsletter subscriber.
+	 * Newsletter signup.
 	 *
 	 * @return void
 	 */
 	function tg_ajax_subscribe_newsletter() {
 		if ( ! tg_ajax_verify_nonce() ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Invalid session. Please refresh the page.', 'guidegrid-travel' ),
-				),
-				403
-			);
+			wp_send_json_error( array( 'message' => __( 'Invalid session. Please refresh the page.', 'guidegrid-travel' ) ), 403 );
 		}
-
-		// Optional newsletter honeypot.
 		if ( ! empty( $_POST['tg_newsletter_website'] ) ) {
-			wp_send_json_success(
-				array(
-					'message' => __( 'You are subscribed. Safe travels!', 'guidegrid-travel' ),
-				)
-			);
+			wp_send_json_success( array( 'message' => __( 'You are subscribed. Safe travels!', 'guidegrid-travel' ) ) );
 		}
 
 		$limit = tg_rate_limit( 'newsletter:' . tg_ip(), 3, 3600 );
-
 		if ( is_wp_error( $limit ) ) {
-			wp_send_json_error(
-				array(
-					'message' => $limit->get_error_message(),
-				),
-				429
-			);
+			wp_send_json_error( array( 'message' => $limit->get_error_message() ), 429 );
 		}
 
-		$email = isset( $_POST['email'] )
-			? strtolower( sanitize_email( wp_unslash( $_POST['email'] ) ) )
-			: '';
-
+		$email = isset( $_POST['email'] ) ? strtolower( sanitize_email( wp_unslash( $_POST['email'] ) ) ) : '';
 		if ( ! is_email( $email ) ) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Please enter a valid email address.', 'guidegrid-travel' ),
-					'fields'  => array(
-						'email' => __( 'Please enter a valid email address.', 'guidegrid-travel' ),
-					),
-				),
-				422
-			);
+			wp_send_json_error( array( 'message' => __( 'Please enter a valid email address.', 'guidegrid-travel' ), 'fields' => array( 'email' => __( 'Please enter a valid email address.', 'guidegrid-travel' ) ) ), 422 );
 		}
 
-		$stored_list = get_option( 'tg_newsletter_subscribers', array() );
-		$stored_list = is_array( $stored_list ) ? $stored_list : array();
-
-		$list = array();
-
-		foreach ( $stored_list as $stored_email ) {
+		$stored = get_option( 'tg_newsletter_subscribers', array() );
+		$list   = array();
+		foreach ( is_array( $stored ) ? $stored : array() as $stored_email ) {
 			$stored_email = strtolower( sanitize_email( $stored_email ) );
-
 			if ( is_email( $stored_email ) ) {
 				$list[] = $stored_email;
 			}
 		}
-
 		$list = array_values( array_unique( $list ) );
-
 		if ( in_array( $email, $list, true ) ) {
-			wp_send_json_success(
-				array(
-					'message' => __( 'You are already subscribed. Safe travels!', 'guidegrid-travel' ),
-				)
-			);
+			wp_send_json_success( array( 'message' => __( 'You are already subscribed. Safe travels!', 'guidegrid-travel' ) ) );
 		}
 
-		$list[] = $email;
-		$list   = array_values( array_unique( $list ) );
-
-		$updated = update_option(
-			'tg_newsletter_subscribers',
-			$list,
-			false
-		);
-
-		if (
-			! $updated &&
-			get_option( 'tg_newsletter_subscribers', array() ) !== $list
-		) {
-			wp_send_json_error(
-				array(
-					'message' => __( 'Your subscription could not be saved. Please try again.', 'guidegrid-travel' ),
-				),
-				500
-			);
+		$list[]  = $email;
+		$updated = update_option( 'tg_newsletter_subscribers', array_values( array_unique( $list ) ), false );
+		if ( ! $updated && ! in_array( $email, (array) get_option( 'tg_newsletter_subscribers', array() ), true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Your subscription could not be saved. Please try again.', 'guidegrid-travel' ) ), 500 );
 		}
 
 		do_action( 'tg_newsletter_subscribed', $email );
-
-		wp_send_json_success(
-			array(
-				'message' => __( 'You are subscribed. Safe travels!', 'guidegrid-travel' ),
-			)
-		);
+		wp_send_json_success( array( 'message' => __( 'You are subscribed. Safe travels!', 'guidegrid-travel' ) ) );
 	}
 }
-
 add_action( 'wp_ajax_tg_subscribe_newsletter', 'tg_ajax_subscribe_newsletter' );
 add_action( 'wp_ajax_nopriv_tg_subscribe_newsletter', 'tg_ajax_subscribe_newsletter' );
 

@@ -7,8 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$settings = tg_settings();
-$footer_logo_id = absint( get_theme_mod( 'tg_footer_logo', 0 ) );
+$settings       = tg_settings();
+$footer_logo_id = absint( $settings['footer_logo_id'] ?? 0 );
 ?>
 </main><!-- #tg-main -->
 
@@ -17,7 +17,7 @@ $footer_logo_id = absint( get_theme_mod( 'tg_footer_logo', 0 ) );
 		<div class="tg-footer-grid">
 			<div class="tg-footer-about">
 				<span class="tg-footer-logo">
-					<?php if ( $footer_logo_id ) : ?>
+					<?php if ( $footer_logo_id && wp_attachment_is_image( $footer_logo_id ) ) : ?>
 						<a href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php echo esc_attr( get_bloginfo( 'name' ) ); ?>">
 							<?php
 							echo wp_get_attachment_image(
@@ -29,7 +29,7 @@ $footer_logo_id = absint( get_theme_mod( 'tg_footer_logo', 0 ) );
 									'alt'     => get_bloginfo( 'name' ),
 									'loading' => 'lazy',
 								)
-							);
+							); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- core attachment markup.
 							?>
 						</a>
 					<?php elseif ( has_custom_logo() ) : ?>
@@ -38,7 +38,6 @@ $footer_logo_id = absint( get_theme_mod( 'tg_footer_logo', 0 ) );
 						Guide<span>Grid</span>
 					<?php endif; ?>
 				</span>
-				
 				<p><?php echo esc_html( $settings['footer_about'] ? $settings['footer_about'] : get_bloginfo( 'description' ) ); ?></p>
 				<div class="tg-footer-social">
 					<?php if ( $settings['social_facebook'] ) : ?>
@@ -112,7 +111,11 @@ $footer_logo_id = absint( get_theme_mod( 'tg_footer_logo', 0 ) );
 				<p><?php esc_html_e( 'Monthly deals, new tours and packing tips. No spam.', 'guidegrid-travel' ); ?></p>
 				<form data-tg-ajax-form data-action="tg_subscribe_newsletter" novalidate>
 					<label class="screen-reader-text" for="tg-footer-newsletter"><?php esc_html_e( 'Email address', 'guidegrid-travel' ); ?></label>
-					<input type="email" id="tg-footer-newsletter" name="email" class="tg-input" placeholder="<?php esc_attr_e( 'Email address', 'guidegrid-travel' ); ?>" required />
+					<input type="email" id="tg-footer-newsletter" name="email" class="tg-input" placeholder="<?php esc_attr_e( 'Email address', 'guidegrid-travel' ); ?>" required autocomplete="email" />
+					<p class="screen-reader-text" aria-hidden="true">
+						<label for="tg-newsletter-website"><?php esc_html_e( 'Leave this field empty', 'guidegrid-travel' ); ?></label>
+						<input type="text" id="tg-newsletter-website" name="tg_newsletter_website" value="" tabindex="-1" autocomplete="off" />
+					</p>
 					<button type="submit" class="tg-btn tg-btn--accent"><?php esc_html_e( 'Join', 'guidegrid-travel' ); ?></button>
 				</form>
 				<ul class="tg-footer-list tg-footer-contact" style="margin-top:18px;">

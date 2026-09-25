@@ -22,10 +22,10 @@ while ( have_posts() ) :
 	<div class="tg-container" style="padding:3rem 1rem;">
 		<?php tg_breadcrumbs(); ?>
 		<div class="tg-tour-title-row">
-			<div>
-				<h1><?php the_title(); ?></h1>
+			<div style="flex-grow:1;">
+				<h1 style="margin-bottom:8px;"><?php the_title(); ?></h1>
 				<p class="tg-tour-subtitle"><?php echo esc_html( wp_trim_words( (string) get_the_excerpt( $tour_id ), 22 ) ); ?></p>
-				<div class="tg-tour-card-meta" style="display:inline-flex;gap:16px;">
+				<div class="tg-tour-card-meta" style="display:inline-flex;gap:4px 16px;flex-direction: row;flex-wrap:wrap;">
 					<?php if ( $rating['count'] > 0 ) : ?>
 						<span><?php echo tg_star_html( $rating['avg'], $rating['count'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
 					<?php endif; ?>
@@ -41,10 +41,11 @@ while ( have_posts() ) :
 			</div>
 			<div class="tg-tour-title-actions">
 				<button type="button" class="tg-btn tg-btn--ghost tg-btn--sm <?php echo $in_wish ? 'is-active' : ''; ?>" data-tg-wishlist-single data-tour="<?php echo esc_attr( (string) $tour_id ); ?>">
-					<?php echo tg_lucide( 'heart' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<?php // echo tg_svg( 'heart' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<?php echo $in_wish ? tg_svg( 'heart' ) : tg_lucide( 'heart' ); ?>
 					<?php echo $in_wish ? esc_html__( 'Saved', 'guidegrid-travel' ) : esc_html__( 'Save', 'guidegrid-travel' ); ?>
 				</button>
-				<a class="tg-btn tg-btn--ghost tg-btn--sm" href="<?php echo esc_url( add_query_arg( 'wp-share', '', wp_get_referer() ? wp_get_referer() : get_permalink() ) ); ?>" onclick="navigator.clipboard.writeText(window.location.href);return false;"><?php echo tg_svg( 'check' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Copy link', 'guidegrid-travel' ); ?></a>
+				<a class="tg-btn tg-btn--ghost tg-btn--sm" href="<?php echo esc_url( add_query_arg( 'wp-share', '', wp_get_referer() ? wp_get_referer() : get_permalink() ) ); ?>" onclick="navigator.clipboard.writeText(window.location.href);return false;"><?php echo tg_lucide( 'link' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php esc_html_e( 'Copy', 'guidegrid-travel' ); ?></a>
 			</div>
 		</div>
 
@@ -162,22 +163,8 @@ while ( have_posts() ) :
 							<?php endforeach; ?>
 						</div>
 					</section>
-				<?php endif; ?>
+				<?php endif; ?> 
 
-				<!-- Reviews -->
-				<section class="tg-tour-section">
-					<div class="tg-title-icon-row"> 
-						<div class="tg-tour-section-icon">
-							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star-check preview-icon"><path d="m19.06 12.501 2.78-2.707a.53.53 0 0 0-.294-.905l-5.166-.755a2.1 2.1 0 0 1-1.595-1.16l-2.31-4.68a.53.53 0 0 0-.95.001L9.216 6.974a2.1 2.1 0 0 1-1.597 1.16l-5.165.755a.53.53 0 0 0-.294.906l3.736 3.637a2.1 2.1 0 0 1 .611 1.879l-.88 5.139a.53.53 0 0 0 .769.56l4.617-2.428.027-.014"/><path d="m15 18 2 2 4-4"/></svg>
-						</div>
-						<h2 class="section-title">
-							<?php esc_html_e( 'Reviews', 'guidegrid-travel' ); ?>
-							<small style="font-size:.75rem;display:block;font-weight:500;"><?php esc_html_e( 'Here you can find reviews from our guests.', 'guidegrid-travel' ); ?></small>
-						</h2>
-					</div>
-					 
-					<?php tg_tour_reviews( $tour_id ); ?>
-				</section>
 			</div>
 
 			<!-- Booking widget sidebar -->
@@ -185,6 +172,22 @@ while ( have_posts() ) :
 				<?php get_template_part( 'template-parts/tour/booking-widget' ); ?>
 			</aside>
 		</div>
+
+		<!-- Reviews -->
+		<section class="tg-tour-section">
+			<div class="tg-title-icon-row"> 
+				<div class="tg-tour-section-icon">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star-check preview-icon"><path d="m19.06 12.501 2.78-2.707a.53.53 0 0 0-.294-.905l-5.166-.755a2.1 2.1 0 0 1-1.595-1.16l-2.31-4.68a.53.53 0 0 0-.95.001L9.216 6.974a2.1 2.1 0 0 1-1.597 1.16l-5.165.755a.53.53 0 0 0-.294.906l3.736 3.637a2.1 2.1 0 0 1 .611 1.879l-.88 5.139a.53.53 0 0 0 .769.56l4.617-2.428.027-.014"/><path d="m15 18 2 2 4-4"/></svg>
+				</div>
+				<h2 class="section-title">
+					<?php esc_html_e( 'Reviews', 'guidegrid-travel' ); ?>
+					<small style="font-size:.75rem;display:block;font-weight:500;"><?php esc_html_e( 'Here you can find reviews from our guests.', 'guidegrid-travel' ); ?></small>
+				</h2>
+			</div>
+
+			<?php tg_tour_reviews( $tour_id ); ?>
+		</section>
+		 
 
 		<!-- Related -->
 		<section class="tg-section" style="padding-bottom:0;">
@@ -194,6 +197,8 @@ while ( have_posts() ) :
 			?>
 		</section>
 	</div>
+
+	
 
 	<!-- Mobile sticky CTA -->
 	<div class="tg-mobile-cta">

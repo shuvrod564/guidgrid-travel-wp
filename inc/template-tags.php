@@ -660,6 +660,7 @@ if ( ! function_exists( 'tg_tour_reviews' ) ) {
 		$summary = TG_Reviews::summary( $tour_id );
 		$reviews = TG_Reviews::get_for_tour( $tour_id, 5, 1 );
 		$user_id = get_current_user_id();
+		$review_form_id = 'tg-review-form-' . $tour_id;
 		?>
 		<div class="tg-reviews-layout" id="tg-reviews">
 			<aside class="tg-review-summary" aria-label="<?php esc_attr_e( 'Rating summary', 'guidegrid-travel' ); ?>">
@@ -675,7 +676,7 @@ if ( ! function_exists( 'tg_tour_reviews' ) ) {
 							$summary['count']
 						);
 						?>
-					</div>
+					</div> 
 				</div>
 				<?php for ( $star = 5; $star >= 1; $star-- ) : ?>
 					<?php
@@ -688,6 +689,29 @@ if ( ! function_exists( 'tg_tour_reviews' ) ) {
 						<span class="tg-dist-count"><?php echo esc_html( (string) $count ); ?></span>
 					</div>
 				<?php endfor; ?>
+
+				<div class="padding" style="text-align:center;padding-top:20px;">
+					<?php if ( $user_id ) : ?>
+						<button
+							type="button"
+							class="tg-btn tg-btn--ghost"
+							data-tg-review-toggle
+							aria-controls="<?php echo esc_attr( $review_form_id ); ?>"
+							aria-expanded="false"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star-plus preview-icon"><path d="M11.013 18.582 6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16l2.309-4.679a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904L20 11.5"/><path d="M15 18h6"/><path d="M18 15v6"/></svg>
+							<?php esc_html_e( 'Write a Review', 'guidegrid-travel' ); ?>
+						</button>
+					<?php else : ?>
+						<a
+							class="tg-btn tg-btn--ghost"
+							href="<?php echo esc_url( tg_auth_url( get_permalink( $tour_id ) . '#tg-reviews', 'login' ) ); ?>"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star-plus preview-icon"><path d="M11.013 18.582 6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16l2.309-4.679a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904L20 11.5"/><path d="M15 18h6"/><path d="M18 15v6"/></svg>
+							<?php esc_html_e( 'Write a Review', 'guidegrid-travel' ); ?>
+						</a>
+					<?php endif; ?>
+				</div>
 			</aside>
 
 			<div>
@@ -718,30 +742,39 @@ if ( ! function_exists( 'tg_tour_reviews' ) ) {
 				</div>
 
 				<?php if ( $user_id ) : ?>
-					<div class="tg-review-form" data-tg-review-form data-tour="<?php echo esc_attr( (string) $tour_id ); ?>">
-						<h3><?php esc_html_e( 'Write a review', 'guidegrid-travel' ); ?></h3>
-						<form method="post" data-tg-ajax-form data-action="tg_submit_review">
-							<div class="tg-form-row">
-								<label class="tg-label" for="tg-review-rating"><?php esc_html_e( 'Your rating', 'guidegrid-travel' ); ?></label>
-								<div class="tg-rating-input" id="tg-review-rating">
-									<?php for ( $star = 5; $star >= 1; $star-- ) : ?>
-										<input type="radio" id="tg-rate-<?php echo esc_attr( (string) $star ); ?>" name="rating" value="<?php echo esc_attr( (string) $star ); ?>" <?php echo 5 === $star ? 'checked' : ''; ?> />
-										<label for="tg-rate-<?php echo esc_attr( (string) $star ); ?>" aria-label="<?php echo esc_attr( sprintf( /* translators: %d: stars */ _n( '%d star', '%d stars', $star, 'guidegrid-travel' ), $star ) ); ?>">★</label>
-									<?php endfor; ?>
+					<div
+						id="<?php echo esc_attr( $review_form_id ); ?>"
+						class="tg-review-form"
+						data-tg-review-form
+						data-tour="<?php echo esc_attr( (string) $tour_id ); ?>"
+						hidden
+						 style="scroll-margin-top: 45px;"
+					>
+						<div class="card"> 
+							<h3 style="margin-bottom:20px;"><?php esc_html_e( 'Write a review', 'guidegrid-travel' ); ?></h3>
+							<form method="post" data-tg-ajax-form data-action="tg_submit_review">
+								<div class="tg-form-row">
+									<label class="tg-label" for="tg-review-rating"><?php esc_html_e( 'Your rating', 'guidegrid-travel' ); ?></label>
+									<div class="tg-rating-input" id="tg-review-rating">
+										<?php for ( $star = 5; $star >= 1; $star-- ) : ?>
+											<input type="radio" id="tg-rate-<?php echo esc_attr( (string) $star ); ?>" name="rating" value="<?php echo esc_attr( (string) $star ); ?>" <?php echo 5 === $star ? 'checked' : ''; ?> />
+											<label for="tg-rate-<?php echo esc_attr( (string) $star ); ?>" aria-label="<?php echo esc_attr( sprintf( /* translators: %d: stars */ _n( '%d star', '%d stars', $star, 'guidegrid-travel' ), $star ) ); ?>">★</label>
+										<?php endfor; ?>
+									</div>
 								</div>
-							</div>
-							<div class="tg-form-row">
-								<label class="tg-label" for="tg-review-title"><?php esc_html_e( 'Title (optional)', 'guidegrid-travel' ); ?></label>
-								<input type="text" id="tg-review-title" name="title" class="tg-input" maxlength="150" />
-							</div>
-							<div class="tg-form-row">
-								<label class="tg-label" for="tg-review-content"><?php esc_html_e( 'Your review', 'guidegrid-travel' ); ?></label>
-								<textarea id="tg-review-content" name="content" class="tg-textarea" required></textarea>
-								<span class="tg-field-error" role="alert"></span>
-							</div>
-							<p class="tg-bw-note"><?php esc_html_e( 'Reviews are checked by our team before publishing.', 'guidegrid-travel' ); ?></p>
-							<button type="submit" class="tg-btn tg-btn--primary"><?php esc_html_e( 'Submit Review', 'guidegrid-travel' ); ?><span class="tg-spinner" aria-hidden="true"></span></button>
-						</form>
+								<div class="tg-form-row">
+									<label class="tg-label" for="tg-review-title"><?php esc_html_e( 'Title (optional)', 'guidegrid-travel' ); ?></label>
+									<input type="text" id="tg-review-title" name="title" class="tg-input" maxlength="150" />
+								</div>
+								<div class="tg-form-row">
+									<label class="tg-label" for="tg-review-content"><?php esc_html_e( 'Your review', 'guidegrid-travel' ); ?></label>
+									<textarea id="tg-review-content" name="content" class="tg-textarea" required></textarea>
+									<span class="tg-field-error" role="alert"></span>
+								</div>
+								<button type="submit" class="tg-btn tg-btn--primary"><?php esc_html_e( 'Submit Review', 'guidegrid-travel' ); ?><span class="tg-spinner" aria-hidden="true"></span></button>
+								<p class="tg-bw-note"><?php esc_html_e( 'Reviews are checked by our team before publishing.', 'guidegrid-travel' ); ?></p>
+							</form>
+						</div>
 					</div>
 				<?php else : ?>
 					<p class="tg-mt-4"><a class="tg-btn tg-btn--secondary" href="<?php echo esc_url( tg_auth_url( get_permalink( $tour_id ) . '#tg-reviews', 'login' ) ); ?>"><?php esc_html_e( 'Log in to write a review', 'guidegrid-travel' ); ?></a></p>

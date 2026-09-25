@@ -64,6 +64,10 @@ if ( ! function_exists( 'tg_settings' ) ) {
 			'show_header_cta'         => 1,
 			'header_cta_text'         => __( 'Book a Tour', 'guidegrid-travel' ),
 			'header_cta_url'          => '',
+			'hero_title'              => '', // Legacy global fallback; the front-page meta box is authoritative.
+			'hero_text'               => '',
+			'hero_image_url'          => '',
+			'footer_logo_id'          => 0,
 			'footer_about'            => '',
 			'footer_copyright'        => '',
 			'contact_address'         => '',
@@ -709,6 +713,7 @@ if ( ! function_exists( 'tg_lucide' ) ) {
 			'question-mark'     => '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>', 
 			'user'     => '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', 
 			'menu'     => '<path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/>', 
+			'link'     => '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>', 
 		);
 
 		$path = $icons[ $name ] ?? $icons['check'];

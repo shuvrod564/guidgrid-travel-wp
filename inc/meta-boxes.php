@@ -972,3 +972,152 @@ if ( ! function_exists( 'tg_save_addon_meta' ) ) {
 	}
 }
 add_action( 'save_post_tg_addon', 'tg_save_addon_meta' );
+
+
+
+
+/**
+ * Register the Tour Gallery metabox.
+ *
+ * @return void
+ */
+function tg_register_tour_gallery_meta_box(): void {
+	add_meta_box(
+		'tg_tour_gallery',
+		__( 'Tour Gallery', 'guidegrid-travel' ),
+		'tg_render_tour_gallery_meta_box',
+		'tour',
+		'normal',
+		'high'
+	);
+}
+add_action( 'add_meta_boxes_tour', 'tg_register_tour_gallery_meta_box' );
+
+/**
+ * Load the WordPress Media Library on Tour editor screens.
+ *
+ * @param string $hook_suffix Admin page.
+ * @return void
+ */
+function tg_enqueue_tour_gallery_media( string $hook_suffix ): void {
+	if ( ! in_array( $hook_suffix, array( 'post.php', 'post-new.php' ), true ) ) {
+		return;
+	}
+
+	$screen = get_current_screen();
+
+	if ( $screen && 'tour' === $screen->post_type ) {
+		wp_enqueue_media();
+	}
+}
+add_action( 'admin_enqueue_scripts', 'tg_enqueue_tour_gallery_media', 5 );
+
+/**
+ * Render the Tour Gallery metabox.
+ *
+ * @param WP_Post $post Tour post.
+ * @return void
+ */
+function tg_render_tour_gallery_meta_box( WP_Post $post ): void {
+	$gallery_ids = tg_tour_gallery_ids( $post->ID );
+	?>
+	<div class="tg-tour-gallery-field" data-tg-tour-gallery>
+		<input
+			type="hidden"
+			name="tg_gallery_present"
+			value="1"
+		/>
+
+		<p class="description">
+			<?php
+			esc_html_e(
+				'The Featured Image is displayed first. Add additional images below for the tour detail gallery.',
+				'guidegrid-travel'
+			);
+			?>
+		</p>
+
+		<div class="tg-gallery-admin-list" data-tg-gallery-list>
+			<?php foreach ( $gallery_ids as $attachment_id ) : ?>
+				<?php if ( wp_attachment_is_image( $attachment_id ) ) : ?>
+					<div
+						class="tg-gallery-admin-item"
+						data-attachment-id="<?php echo esc_attr( (string) $attachment_id ); ?>"
+					>
+						<?php
+						echo wp_get_attachment_image(
+							$attachment_id,
+							'thumbnail',
+							false,
+							array(
+								'alt' => '',
+							)
+						); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+						?>
+
+						<input
+							type="hidden"
+							name="tg_gallery_ids[]"
+							value="<?php echo esc_attr( (string) $attachment_id ); ?>"
+						/>
+
+						<button
+							type="button"
+							class="button-link-delete tg-gallery-remove"
+						>
+							<?php esc_html_e( 'Remove', 'guidegrid-travel' ); ?>
+						</button>
+					</div>
+				<?php endif; ?>
+			<?php endforeach; ?>
+		</div>
+
+		<p>
+			<button
+				type="button"
+				class="button button-primary"
+				data-tg-gallery-add
+			>
+				<?php esc_html_e( 'Add Gallery Images', 'guidegrid-travel' ); ?>
+			</button>
+
+			<button
+				type="button"
+				class="button button-secondary"
+				data-tg-gallery-clear
+				<?php echo $gallery_ids ? '' : 'hidden'; ?>
+			>
+				<?php esc_html_e( 'Clear Gallery', 'guidegrid-travel' ); ?>
+			</button>
+		</p>
+	</div>
+	<?php
+}
+
+// Gallery attachments.
+if ( isset( $_POST['tg_gallery_present'] ) ) {
+	$raw_ids = isset( $_POST['tg_gallery_ids'] )
+		? (array) wp_unslash( $_POST['tg_gallery_ids'] )
+		: array();
+
+	$ids = array();
+
+	foreach ( $raw_ids as $attachment_id ) {
+		$attachment_id = absint( $attachment_id );
+
+		if (
+			$attachment_id &&
+			wp_attachment_is_image( $attachment_id )
+		) {
+			$ids[] = $attachment_id;
+		}
+	}
+
+	$ids = array_values( array_unique( $ids ) );
+
+	if ( $ids ) {
+		update_post_meta( $post_id, '_tg_gallery', $ids );
+	} else {
+		delete_post_meta( $post_id, '_tg_gallery' );
+	}
+}

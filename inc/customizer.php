@@ -48,8 +48,8 @@ if ( ! function_exists( 'tg_customize_register' ) ) {
 				'tg_settings[' . $key . ']',
 				array(
 					'default'           => $cfg['default'],
+					'type'              => 'option',
 					'sanitize_callback' => 'sanitize_hex_color',
-					'theme_mods'        => false,
 				)
 			);
 			$wp_customize->add_control(
@@ -57,8 +57,9 @@ if ( ! function_exists( 'tg_customize_register' ) ) {
 					$wp_customize,
 					'tg_' . $key,
 					array(
-						'label'   => $cfg['label'],
-						'section' => 'tg_branding',
+						'label'    => $cfg['label'],
+						'section'  => 'tg_branding',
+						'settings' => 'tg_settings[' . $key . ']',
 					)
 				)
 			);
@@ -105,23 +106,41 @@ if ( ! function_exists( 'tg_customize_register' ) ) {
 				'label' => __( 'Header CTA Text', 'guidegrid-travel' ),
 				'type'  => 'text',
 			),
+			'header_cta_url'   => array(
+				'label' => __( 'Header CTA URL', 'guidegrid-travel' ),
+				'type'  => 'url',
+			),
+			'footer_copyright' => array(
+				'label' => __( 'Footer Copyright Text', 'guidegrid-travel' ),
+				'type'  => 'text',
+			),
 		);
 
 		foreach ( $text_settings as $key => $cfg ) {
 			$existing = isset( $settings[ $key ] ) ? $settings[ $key ] : '';
+			$sanitize = 'sanitize_text_field';
+			if ( 'url' === $cfg['type'] ) {
+				$sanitize = 'esc_url_raw';
+			} elseif ( 'email' === $cfg['type'] ) {
+				$sanitize = 'sanitize_email';
+			} elseif ( 'textarea' === $cfg['type'] ) {
+				$sanitize = 'sanitize_textarea_field';
+			}
 			$wp_customize->add_setting(
 				'tg_settings[' . $key . ']',
 				array(
 					'default'           => $existing,
-					'sanitize_callback' => ( 'url' === $cfg['type'] ) ? 'esc_url_raw' : ( 'email' === $cfg['type'] ? 'sanitize_email' : 'sanitize_text_field' ),
+					'type'              => 'option',
+					'sanitize_callback' => $sanitize,
 				)
 			);
 			$wp_customize->add_control(
 				$tg_id = 'tg_' . $key,
 				array(
-					'label'   => $cfg['label'],
-					'section' => 'tg_branding',
-					'type'    => $cfg['type'],
+					'label'    => $cfg['label'],
+					'section'  => 'tg_branding',
+					'settings' => 'tg_settings[' . $key . ']',
+					'type'     => $cfg['type'],
 				)
 			);
 		}
@@ -139,37 +158,38 @@ if ( ! function_exists( 'tg_customize_register' ) ) {
 				'tg_settings[' . $key . ']',
 				array(
 					'default'           => isset( $settings[ $key ] ) ? (bool) $settings[ $key ] : true,
+					'type'              => 'option',
 					'sanitize_callback' => 'tg_sanitize_checkbox',
 				)
 			);
 			$wp_customize->add_control(
 				'tg_' . $key,
 				array(
-					'label'   => $label,
-					'section' => 'tg_branding',
-					'type'    => 'checkbox',
+					'label'    => $label,
+					'section'  => 'tg_branding',
+					'settings' => 'tg_settings[' . $key . ']',
+					'type'     => 'checkbox',
 				)
 			);
 		}
 
 		$wp_customize->add_setting(
-			'tg_footer_logo',
+			'tg_settings[footer_logo_id]',
 			array(
-				'default'           => 0,
-				'type'              => 'theme_mod',
-				'capability'        => 'edit_theme_options',
+				'default'           => absint( $settings['footer_logo_id'] ?? 0 ),
+				'type'              => 'option',
 				'sanitize_callback' => 'absint',
 			)
 		);
-
 		$wp_customize->add_control(
 			new WP_Customize_Media_Control(
 				$wp_customize,
 				'tg_footer_logo',
 				array(
 					'label'       => __( 'Footer Logo', 'guidegrid-travel' ),
-					'description' => __( 'Upload a separate logo for the dark footer. A transparent or light-colored logo is recommended.', 'guidegrid-travel' ),
+					'description' => __( 'Upload a separate transparent or light-colored logo for the dark footer.', 'guidegrid-travel' ),
 					'section'     => 'tg_branding',
+					'settings'    => 'tg_settings[footer_logo_id]',
 					'mime_type'   => 'image',
 				)
 			)

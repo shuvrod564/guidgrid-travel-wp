@@ -386,7 +386,7 @@ label.tg-label,
 .tg-rating .tg-stars {
 	position: relative;
 	display: inline-block;
-	font-size: 1rem;
+	font-size: 1.25rem;
 	line-height: 1;
 	letter-spacing: 2px;
 	color: #D8DDE2;
@@ -829,7 +829,11 @@ label.tg-label,
 }
 .tg-empty .tg-empty-icon svg { width: 30px; height: 30px; fill: currentColor; }
 .tg-empty h3 { margin-bottom: 6px; }
-.tg-empty p { color: var(--tg-muted); margin-bottom: 18px; }
+.tg-empty p { color: var(--tg-muted); margin: 0 auto 18px;max-width: 365px; }
+@media(min-width:992px) {
+	.tg-empty .tg-empty-icon { width: 80px;height: 80px; }
+	.tg-empty .tg-empty-icon svg { width: 48px;height: 48px; }
+}
 
 /* ==========================================================================
    14. Lightbox

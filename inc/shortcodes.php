@@ -158,11 +158,13 @@ if ( ! function_exists( 'tg_sc_enquiry_form' ) ) {
 			<div class="tg-form-grid">
 				<div class="tg-field tg-form-row">
 					<label class="tg-label" for="tg-enq-name"><?php esc_html_e( 'Name', 'guidegrid-travel' ); ?> *</label>
-					<input type="text" id="tg-enq-name" name="name" class="tg-input" required />
+					<input type="text" id="tg-enq-name" name="name" class="tg-input" required autocomplete="name" />
+					<span class="tg-field-error" role="alert"></span>
 				</div>
 				<div class="tg-field tg-form-row">
 					<label class="tg-label" for="tg-enq-email"><?php esc_html_e( 'Email', 'guidegrid-travel' ); ?> *</label>
-					<input type="email" id="tg-enq-email" name="email" class="tg-input" required />
+					<input type="email" id="tg-enq-email" name="email" class="tg-input" required autocomplete="email" />
+					<span class="tg-field-error" role="alert"></span>
 				</div>
 				<div class="tg-field tg-form-row">
 					<label class="tg-label" for="tg-enq-phone"><?php esc_html_e( 'Phone', 'guidegrid-travel' ); ?></label>
@@ -175,6 +177,7 @@ if ( ! function_exists( 'tg_sc_enquiry_form' ) ) {
 				<div class="tg-field tg-form-row">
 					<label class="tg-label" for="tg-enq-date"><?php esc_html_e( 'Travel date', 'guidegrid-travel' ); ?></label>
 					<input type="date" id="tg-enq-date" name="travel_date" class="tg-input" />
+					<span class="tg-field-error" role="alert"></span>
 				</div>
 				<div class="tg-field tg-form-row">
 					<label class="tg-label" for="tg-enq-travelers"><?php esc_html_e( 'Number of travelers', 'guidegrid-travel' ); ?></label>
@@ -188,7 +191,12 @@ if ( ! function_exists( 'tg_sc_enquiry_form' ) ) {
 			<div class="tg-field tg-form-row">
 				<label class="tg-label" for="tg-enq-message"><?php esc_html_e( 'Message', 'guidegrid-travel' ); ?> *</label>
 				<textarea id="tg-enq-message" name="message" class="tg-textarea" required></textarea>
+				<span class="tg-field-error" role="alert"></span>
 			</div>
+			<p class="screen-reader-text" aria-hidden="true">
+				<label for="tg-enquiry-website"><?php esc_html_e( 'Leave this field empty', 'guidegrid-travel' ); ?></label>
+				<input type="text" id="tg-enquiry-website" name="tg_website" value="" tabindex="-1" autocomplete="off" />
+			</p>
 			<button type="submit" class="tg-btn tg-btn--primary"><?php esc_html_e( 'Send Enquiry', 'guidegrid-travel' ); ?><span class="tg-spinner" aria-hidden="true"></span></button>
 		</form>
 		<?php
